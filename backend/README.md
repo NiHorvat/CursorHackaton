@@ -83,6 +83,10 @@ Edit **`.env`**:
 
 Keep **`AI_agent/events.json`** next to `server.mjs`. The process **exits on startup** if the file is missing or invalid JSON.
 
+Each event object is expected to include at least: **`id`** (number), **`title`**, **`start_at`**, **`venue`**, **`address`**, **`lat`** / **`lng`** (map pins only work when both are set), **`url`**, **`source`**, **`external_key`**, **`end_at`** (optional). The model only receives a **truncated** list of geocoded events per request (see `EVENTS_TOOL_MAX_ITEMS`); the full file is still used to enrich pins by id.
+
+The file **`data.mjs`** is documentation only (no runtime data).
+
 Install and start:
 
 ```bash
