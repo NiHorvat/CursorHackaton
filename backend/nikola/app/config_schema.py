@@ -73,13 +73,13 @@ class SecretsConfig(BaseModel):
 
 
 class AppPaths(BaseModel):
-    """Resolved paths for config and database."""
+    """Resolved paths for config and data files."""
 
     project_root: Path
     places_queries_path: Path
     routes_path: Path
     secrets_path: Path
-    database_path: Path
+    places_json_path: Path
 
     @classmethod
     def from_project_root(cls, root: Path | None = None) -> AppPaths:
@@ -89,7 +89,7 @@ class AppPaths(BaseModel):
             places_queries_path=root / "config" / "places_queries.json",
             routes_path=root / "config" / "routes.json",
             secrets_path=root / "config" / "secrets.json",
-            database_path=root / "places.db",
+            places_json_path=root / "places_data.json",
         )
 
 

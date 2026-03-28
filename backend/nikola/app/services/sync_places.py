@@ -1,15 +1,19 @@
-"""Sync places from Google Places API into SQLite."""
+"""Sync places from Google Places API into places_data.json."""
 
 from __future__ import annotations
 
 import math
-import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.config_schema import PlacesQueriesConfig
 from app.places_client import PlacesClient
 from app.places_parse import parse_reviews_for_db, place_row_from_details
-from app.store import replace_reviews, upsert_place
+from app.store import (
+    atomic_save_places_payload,
+    load_places_payload,
+    upsert_place_into_payload,
+)
 
 _EARTH_RADIUS_M = 6371000.0
 _MAX_OUTSIDE_ERROR_LINES = 40
@@ -46,9 +50,10 @@ def _inside_zagreb_circle(
 
 
 def run_sync(
-    conn: sqlite3.Connection,
     places_cfg: PlacesQueriesConfig,
     client: PlacesClient,
+    *,
+    json_path: Path,
 ) -> dict:
     circle_cfg = places_cfg.zagreb_location.circle
     circle = circle_cfg.to_places_api()
@@ -65,6 +70,8 @@ def run_sync(
     outside_error_lines = 0
     errors: list[str] = []
     now = datetime.now(timezone.utc)
+    # One load at start; each successful place mutates payload then atomic disk write.
+    payload = load_places_payload(json_path)
 
     for q in places_cfg.queries:
         if cap is not None and places_upserted >= cap:
@@ -115,14 +122,12 @@ def run_sync(
                             errors.append(f"skipped_outside_zagreb: {ref}")
                             outside_error_lines += 1
                         continue
-                    upsert_place(conn, row)
                     reviews = parse_reviews_for_db(row["place_id"], details)
-                    replace_reviews(conn, row["place_id"], reviews)
-                    conn.commit()
+                    upsert_place_into_payload(payload, row, reviews)
+                    atomic_save_places_payload(json_path, payload)
                     places_upserted += 1
                 except Exception as e:
                     errors.append(f"{ref}: {e!s}")
-                    conn.rollback()
 
             page_token = resp.get("nextPageToken")
             if not page_token:
@@ -133,7 +138,7 @@ def run_sync(
         errors.append(
             f"skipped_outside_zagreb: ({skipped_outside - _MAX_OUTSIDE_ERROR_LINES} more not listed)"
         )
-    return {
+    out: dict = {
         "status": "completed",
         "queries_run": queries_run,
         "places_upserted": places_upserted,
@@ -144,4 +149,6 @@ def run_sync(
         "zagreb_center": {"latitude": center_lat, "longitude": center_lng},
         "zagreb_radius_meters": radius_m,
         "errors": errors,
+        "places_json": str(json_path),
     }
+    return out
