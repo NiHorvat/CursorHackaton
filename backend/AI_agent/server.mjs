@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -7,14 +8,73 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, ".env") });
 import cors from "cors";
 import OpenAI from "openai";
-import { places, events } from "./data.mjs";
+
+const EVENTS_PATH = join(__dirname, "events.json");
+
+function loadAllEvents() {
+  try {
+    const raw = readFileSync(EVENTS_PATH, "utf8");
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) throw new Error("events.json must be a JSON array");
+    return arr;
+  } catch (e) {
+    console.error("[AI_agent] Failed to load events.json:", e.message);
+    process.exit(1);
+  }
+}
+
+const allEvents = loadAllEvents();
+const eventById = Object.fromEntries(allEvents.map((e) => [String(e.id), e]));
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const placeById = Object.fromEntries(places.map((p) => [p.id, p]));
-const eventById = Object.fromEntries(events.map((e) => [e.id, e]));
+/** Last successful `fetch_places_catalog` items from nikola (GET …/places). */
+let latestPlacesItems = [];
+
+function slimEventForTool(e) {
+  return {
+    id: String(e.id),
+    title: e.title,
+    start_at: e.start_at,
+    end_at: e.end_at,
+    venue: e.venue,
+    address: e.address,
+    lat: e.lat,
+    lng: e.lng,
+    url: e.url,
+    source: e.source,
+  };
+}
+
+function buildEventsToolPayload() {
+  const maxItems = Number(process.env.EVENTS_TOOL_MAX_ITEMS) || 250;
+  const withGeo = allEvents.filter(
+    (e) =>
+      e.lat != null &&
+      e.lng != null &&
+      Number.isFinite(Number(e.lat)) &&
+      Number.isFinite(Number(e.lng)),
+  );
+  const sorted = [...withGeo].sort((a, b) => {
+    const ta = Date.parse(a.start_at);
+    const tb = Date.parse(b.start_at);
+    return (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0);
+  });
+  const slice = sorted.slice(0, maxItems);
+  const items = slice.map(slimEventForTool);
+  return {
+    source: "events-backend",
+    items,
+    total_in_file: allEvents.length,
+    total_with_coordinates: withGeo.length,
+    items_returned: items.length,
+    truncated: withGeo.length > maxItems,
+    hint:
+      "Event ids are stringified numbers (e.g. \"37\"). Only recommend events listed in `items`. Entries without coordinates are omitted from this list.",
+  };
+}
 
 let openaiClient;
 function getOpenAI() {
@@ -30,7 +90,7 @@ const tools = [
     function: {
       name: "fetch_places_catalog",
       description:
-        "Returns the full catalog from the Places backend (Google Places–backed service in production). Use when the user asks where to go, venues, areas, museums, parks, cafes, or daytime ideas in Zagreb.",
+        "Fetches places from the nikola backend (GET /api/v1/places). Each item: Google place id, name, primary_type, lat/lng, address, rating, reviews. Required for any place recommendations.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
     },
   },
@@ -39,7 +99,7 @@ const tools = [
     function: {
       name: "fetch_events_catalog",
       description:
-        "Returns the full catalog from the Events backend (separate DB in production). Use when the user asks what's on, concerts, festivals, dates, tickets, or timed activities in Zagreb.",
+        "Returns Zagreb events from the local events.json snapshot: id (string number), title, start_at/end_at, venue, address, lat/lng, url, source. Sorted by start time; only events with coordinates; list may be truncated (see hint in response). Use for timed activities, exhibitions, concerts.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
     },
   },
@@ -85,16 +145,53 @@ const RECOMMEND_SYSTEM_PROMPT = `You are a Zagreb planning assistant for a map U
 Rules:
 - Always call fetch_places_catalog and/or fetch_events_catalog before reasoning about specific venues or events. You have no catalog data until tools return.
 - Places and events live in separate systems; combine them logically for the user's request (e.g. evening party → nightlife places + same-night events if any).
-- When you eventually choose pins, you may ONLY reference ids that appear in the JSON returned by those tools. Never invent ids or coordinates.
+- When you eventually choose pins, you may ONLY reference ids from those tool payloads: places use Google place_id strings (ChIJ…); events use stringified numeric ids from the events items (e.g. "37"). Never invent ids or coordinates.
 - Prefer 2–6 strong matches; skip weak fits.
 - If the user mentions a date or "tonight", prefer events that plausibly match; if none match, recommend relevant places only and say so in the summary later.`;
 
-function runTool(name) {
+async function fetchPlacesFromNikolaRoute() {
+  const base = process.env.PLACES_API_BASE_URL?.replace(/\/$/, "");
+  if (!base) {
+    throw new Error("PLACES_API_BASE_URL is not set (nikola api root, e.g. http://127.0.0.1:8000/api/v1)");
+  }
+  const url = `${base}/places`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data.items)) {
+    throw new Error("places response missing items array");
+  }
+  return data.items;
+}
+
+async function runToolAsync(name) {
   if (name === "fetch_places_catalog") {
-    return JSON.stringify({ source: "places-backend", items: places });
+    try {
+      const items = await fetchPlacesFromNikolaRoute();
+      latestPlacesItems = items;
+      const payload = {
+        source: "places-backend",
+        items,
+        total: items.length,
+      };
+      if (items.length === 0) {
+        payload.hint =
+          "No rows in nikola DB yet. Trigger sync: GET or POST /api/v1/sync on the places service.";
+      }
+      return JSON.stringify(payload);
+    } catch (e) {
+      console.warn("[AI_agent] places fetch failed:", e.message);
+      latestPlacesItems = [];
+      return JSON.stringify({
+        source: "places-backend",
+        error: e.message,
+        items: [],
+        total: 0,
+      });
+    }
   }
   if (name === "fetch_events_catalog") {
-    return JSON.stringify({ source: "events-backend", items: events });
+    return JSON.stringify(buildEventsToolPayload());
   }
   return JSON.stringify({ error: "unknown_tool", name });
 }
@@ -105,36 +202,58 @@ function runTool(name) {
  */
 function enrichPins(pins) {
   if (!Array.isArray(pins)) return [];
+  const placeById = Object.fromEntries(latestPlacesItems.map((p) => [p.id, p]));
   const out = [];
   for (const pin of pins) {
     if (!pin || (pin.kind !== "place" && pin.kind !== "event")) continue;
-    const row = pin.kind === "place" ? placeById[pin.id] : eventById[pin.id];
+    const key = String(pin.id);
+    const row = pin.kind === "place" ? placeById[key] : eventById[key];
     if (!row) continue;
     const reason = typeof pin.reason === "string" ? pin.reason : "";
+    const lat = row.lat ?? row.latitude;
+    const lng = row.lng ?? row.longitude;
     const base = {
       kind: pin.kind,
-      id: pin.id,
+      id: key,
       reason,
-      latitude: row.latitude,
-      longitude: row.longitude,
-      address: row.address,
+      latitude: lat,
+      longitude: lng,
+      address: row.address ?? null,
     };
     if (pin.kind === "place") {
       out.push({
         ...base,
+        lat,
+        lng,
         name: row.name,
-        type: row.type,
-        area: row.area,
+        primary_type: row.primary_type,
+        rating: row.rating,
+        user_ratings_total: row.user_ratings_total,
+        last_synced_at: row.last_synced_at,
+        reviews: row.reviews,
       });
     } else {
+      if (lat == null || lng == null) continue;
+      let date = null;
+      let time = null;
+      if (typeof row.start_at === "string" && row.start_at.includes("T")) {
+        const [d, rest] = row.start_at.split("T");
+        date = d;
+        time = rest?.slice(0, 5) ?? null;
+      }
       out.push({
         ...base,
+        lat,
+        lng,
         title: row.title,
         venue: row.venue,
-        category: row.category,
-        date: row.date,
-        time: row.time,
-        area: row.area,
+        start_at: row.start_at,
+        end_at: row.end_at,
+        url: row.url,
+        source: row.source,
+        external_key: row.external_key,
+        date,
+        time,
       });
     }
   }
@@ -187,7 +306,7 @@ async function runAgentTurn(userMessage, history = []) {
     }
 
     for (const call of toolCalls) {
-      const output = runTool(call.function.name);
+      const output = await runToolAsync(call.function.name);
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -239,7 +358,7 @@ async function runRecommendTurn(userMessage, history = []) {
     }
 
     for (const call of toolCalls) {
-      const output = runTool(call.function.name);
+      const output = await runToolAsync(call.function.name);
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -287,7 +406,23 @@ async function runRecommendTurn(userMessage, history = []) {
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "zagreb-ai-agent" });
+  const maxItems = Number(process.env.EVENTS_TOOL_MAX_ITEMS) || 250;
+  const withGeo = allEvents.filter(
+    (e) =>
+      e.lat != null &&
+      e.lng != null &&
+      Number.isFinite(Number(e.lat)) &&
+      Number.isFinite(Number(e.lng)),
+  );
+  res.json({
+    ok: true,
+    service: "zagreb-ai-agent",
+    events: {
+      loaded: allEvents.length,
+      with_coordinates: withGeo.length,
+      max_sent_to_model: maxItems,
+    },
+  });
 });
 
 app.post("/chat", async (req, res) => {
