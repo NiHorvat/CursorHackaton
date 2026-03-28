@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import calendar
-from datetime import date
+import time
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
@@ -11,18 +11,50 @@ import httpx
 INFOZAGREB_API = "https://www.infozagreb.hr/API/hr/search"
 
 
-def _upcoming_month_ranges(start: date, num_months: int) -> list[tuple[str, str]]:
-    """Each (date_from, date_to) as DD.MM.YYYY for full calendar months."""
+def _upcoming_week_ranges(
+    start: date, *, days_ahead: int = 270
+) -> list[tuple[str, str]]:
+    """Small 7-day windows + lower per_page — less work per request, fewer 504s."""
     ranges: list[tuple[str, str]] = []
-    y, m = start.year, start.month
-    for _ in range(num_months):
-        last_day = calendar.monthrange(y, m)[1]
-        ranges.append((f"01.{m:02d}.{y}", f"{last_day:02d}.{m:02d}.{y}"))
-        if m == 12:
-            y, m = y + 1, 1
-        else:
-            m += 1
+    end = start + timedelta(days=days_ahead)
+    d0 = start
+    while d0 <= end:
+        d1 = min(d0 + timedelta(days=6), end)
+        ranges.append(
+            (
+                f"{d0.day:02d}.{d0.month:02d}.{d0.year}",
+                f"{d1.day:02d}.{d1.month:02d}.{d1.year}",
+            )
+        )
+        d0 = d1 + timedelta(days=1)
     return ranges
+
+
+def _get_search_payload(
+    client: httpx.Client,
+    api_url: str,
+    params: dict[str, str],
+    *,
+    max_retries: int = 6,
+) -> dict[str, Any] | None:
+    """Return JSON or None if this window is unusable (504/timeouts) — caller skips window."""
+    for attempt in range(max_retries):
+        try:
+            r = client.get(api_url, params=params)
+            if r.status_code in (502, 503, 504):
+                if attempt + 1 >= max_retries:
+                    return None
+                time.sleep(min(2.0 * (2**attempt), 30.0))
+                continue
+            r.raise_for_status()
+            return r.json()
+        except httpx.TimeoutException:
+            if attempt + 1 >= max_retries:
+                return None
+            time.sleep(min(2.0 * (2**attempt), 30.0))
+        except httpx.HTTPStatusError:
+            return None
+    return None
 
 
 def _event_url(item: dict[str, Any]) -> str:
@@ -80,12 +112,15 @@ def _venue(item: dict[str, Any]) -> str | None:
 def fetch_infozagreb_events(
     *,
     api_url: str = INFOZAGREB_API,
-    months_ahead: int = 18,
+    days_ahead: int = 270,
     http_timeout: float = 90.0,
 ) -> list[dict[str, Any]]:
     """Return normalized dicts ready for DB upsert."""
     headers = {
-        "User-Agent": "ZagrebHackathonEvents/1.0 (educational; +local)",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
         "Accept": "application/json",
     }
     params_base = {
@@ -93,22 +128,23 @@ def fetch_infozagreb_events(
         "categories": "",
         "type": "EVENTS",
         "orderField": "startDate",
-        "per_page": "120",
+        "per_page": "40",
     }
 
     seen: set[int] = set()
     raw_items: list[dict[str, Any]] = []
 
     with httpx.Client(timeout=http_timeout, headers=headers) as client:
-        for date_from, date_to in _upcoming_month_ranges(date.today(), months_ahead):
+        for date_from, date_to in _upcoming_week_ranges(date.today(), days_ahead=days_ahead):
             params = {
                 **params_base,
                 "date_from": date_from,
                 "date_to": date_to,
             }
-            r = client.get(api_url, params=params)
-            r.raise_for_status()
-            payload = r.json()
+            payload = _get_search_payload(client, api_url, params)
+            time.sleep(0.35)
+            if not payload:
+                continue
             for it in payload.get("data") or []:
                 oid = it.get("id_objects")
                 if isinstance(oid, int) and oid not in seen:

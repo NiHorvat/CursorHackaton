@@ -6,3 +6,7 @@ uvicorn[standard]>=0.32.0
 httpx>=0.27.0
 beautifulsoup4>=4.12.0
 playwright>=1.49.0
+
+
+
+#take all of theb events from the 3 pages for the next 30 days and scrape that if you can into a db accesable through fastapi on frontend. if you cant scrape all the info, just hardcode it, make it real and po

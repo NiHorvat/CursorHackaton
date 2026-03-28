@@ -1,80 +1,122 @@
-"""kultura.zagreb.hr is a Next.js client-rendered listing — scrape in Chromium."""
+"""kultura.zagreb.hr lists events from Supabase (PostgREST). The anon key is minted by the SPA — capture it once in headless Chromium, then page with httpx."""
 
 from __future__ import annotations
 
-from urllib.parse import urlparse
+from typing import Any
 
-from zagreb_events.scrapers.parse_dates import parse_hr_event_line
+import httpx
+
+SUPABASE_EVENTS_URL = (
+    "https://hjssinrkztppyikzuovm.supabase.co/rest/v1/events_comprehensive"
+)
+LISTING_PAGE = "https://kultura.zagreb.hr/dogadanja"
 
 
-def _extract_dom_playwright() -> list[dict[str, str]]:
+def _supabase_headers_via_browser() -> dict[str, str]:
     from playwright.sync_api import sync_playwright
 
-    base = "https://kultura.zagreb.hr/dogadanja"
+    headers: dict[str, str] = {}
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        try:
-            page = browser.new_page()
-            page.set_default_timeout(120_000)
-            page.goto(base, wait_until="domcontentloaded")
-            page.wait_for_function(
-                """() => {
-                  const has = [...document.querySelectorAll('a')]
-                    .some(a => a.href.includes('/dogadanja/') &&
-                      !a.href.replace(/\\/$/, '').endsWith('/dogadanja'));
-                  return has;
-                }""",
-                timeout=90_000,
-            )
-            rows = page.evaluate(
-                """() => {
-                  const out = [];
-                  const seen = new Set();
-                  document.querySelectorAll('a[href*="/dogadanja/"]').forEach((a) => {
-                    const u = a.href;
-                    if (!u.includes('kultura.zagreb.hr')) return;
-                    if (u.replace(/\\/$/, '').endsWith('/dogadanja')) return;
-                    if (seen.has(u)) return;
-                    seen.add(u);
-                    const card = a.closest('article') || a.closest('[class*="card"]') || a.parentElement;
-                    const titleEl = card?.querySelector('h1,h2,h3,h4') || a;
-                    const title = (titleEl?.textContent || '').trim().split('\\n')[0].trim();
-                    const blurb = (a.textContent || '').trim();
-                    if (title) out.push({ href: u, title, blurb });
-                  });
-                  return out;
-                }"""
-            )
-        finally:
-            browser.close()
-    return rows
+        page = browser.new_page()
+        page.set_default_timeout(120_000)
+
+        def on_request(request) -> None:
+            if headers:
+                return
+            u = request.url
+            if (
+                "events_comprehensive" in u
+                and "select=*" in u
+                and request.method == "GET"
+            ):
+                h = request.headers
+                key = h.get("apikey")
+                if key:
+                    headers["apikey"] = key
+                    auth = h.get("authorization")
+                    headers["Authorization"] = auth if auth else f"Bearer {key}"
+
+        page.on("request", on_request)
+        page.goto(LISTING_PAGE, wait_until="networkidle")
+        page.wait_for_timeout(2500)
+        browser.close()
+
+    if not headers:
+        raise RuntimeError(
+            "Could not capture Supabase credentials from kultura.zagreb.hr"
+        )
+    return headers
+
+
+def _normalize_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    oid = row.get("occurrence_id")
+    if not oid:
+        return None
+    title = str(row.get("event_name") or "").strip()
+    if not title:
+        title = "Untitled"
+    venue = row.get("organisation_name") or row.get("address_name")
+    venue_s = str(venue).strip() if venue else None
+    addr = row.get("address_text")
+    addr_s = str(addr).strip() if addr else None
+    start = row.get("occurrence_start")
+    end = row.get("occurrence_end")
+    lat = row.get("latitude")
+    lng = row.get("longitude")
+    try:
+        lat_f = float(lat) if lat is not None else None
+    except (TypeError, ValueError):
+        lat_f = None
+    try:
+        lng_f = float(lng) if lng is not None else None
+    except (TypeError, ValueError):
+        lng_f = None
+    start_s = str(start) if start else None
+    end_s = str(end) if end else None
+    return {
+        "source": "kultura",
+        "external_key": str(oid),
+        "title": title,
+        "url": f"https://kultura.zagreb.hr/events/{oid}",
+        "start_at": start_s,
+        "end_at": end_s,
+        "venue": venue_s,
+        "address": addr_s,
+        "lat": lat_f,
+        "lng": lng_f,
+    }
 
 
 def fetch_kultura_events() -> list[dict]:
-    raw = _extract_dom_playwright()
+    auth = _supabase_headers_via_browser()
+    hdrs = {**auth, "Accept": "application/json"}
     out: list[dict] = []
-    for row in raw:
-        href = row.get("href") or ""
-        title = (row.get("title") or "").strip()
-        blurb = row.get("blurb") or ""
-        if not href or not title:
-            continue
-        parsed = urlparse(href)
-        external_key = f"kultura:{parsed.path.rstrip('/')}"
-        start_at, extra_venue = parse_hr_event_line(blurb)
-        venue = extra_venue
-        out.append(
-            {
-                "source": "kultura",
-                "external_key": external_key,
-                "title": title,
-                "url": href,
-                "start_at": start_at,
-                "end_at": None,
-                "venue": venue,
-                "address": None,
-                "lat": None,
-                "lng": None,
-            }
-        )
+    offset = 0
+    limit = 500
+    with httpx.Client(timeout=120.0) as client:
+        while True:
+            r = client.get(
+                SUPABASE_EVENTS_URL,
+                params={
+                    "select": "*",
+                    "is_active": "eq.true",
+                    "order": "occurrence_start.asc",
+                    "offset": offset,
+                    "limit": limit,
+                },
+                headers=hdrs,
+            )
+            r.raise_for_status()
+            batch = r.json()
+            if not isinstance(batch, list):
+                break
+            for raw in batch:
+                if isinstance(raw, dict):
+                    norm = _normalize_row(raw)
+                    if norm:
+                        out.append(norm)
+            if len(batch) < limit:
+                break
+            offset += limit
     return out

@@ -16,9 +16,8 @@ def _extract_dom_playwright() -> list[dict[str, str]]:
         try:
             page = browser.new_page()
             page.set_default_timeout(120_000)
-            page.goto(url, wait_until="domcontentloaded")
+            page.goto(url, wait_until="networkidle")
             page.wait_for_selector("h4", timeout=90_000)
-            # cookie banner
             btn = page.locator("text=Prihvaćam").first
             if btn.count():
                 try:
@@ -31,17 +30,12 @@ def _extract_dom_playwright() -> list[dict[str, str]]:
                   document.querySelectorAll('h4').forEach((h4) => {
                     const title = (h4.textContent || '').trim();
                     if (!title) return;
-                    let a = null;
-                    let n = h4.nextElementSibling;
-                    for (let i = 0; i < 5 && n && !a; n = n.nextElementSibling, i++) {
-                      if (n.tagName === 'A' && n.href.includes('infozagreb.hr')) a = n;
-                      else if (n.querySelector)
-                        a = n.querySelector('a[href*="infozagreb.hr"]');
-                    }
-                    if (a && a.href) out.push({
+                    const a = h4.closest('a[href*="infozagreb.hr"]');
+                    if (!a || !a.href) return;
+                    out.push({
                       title,
                       href: a.href,
-                      blurb: (a.textContent || '').trim()
+                      blurb: (a.textContent || '').trim(),
                     });
                   });
                   return out;
