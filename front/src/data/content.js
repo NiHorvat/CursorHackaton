@@ -1,8 +1,9 @@
+/** ISO 8601 with offset (Europe/Zagreb-style) for sorting & calendar */
 export const upcomingEvents = [
   {
     id: '1',
     title: 'Ljetni Festival',
-    date: '25. Srpnja 2026',
+    startAt: '2026-07-25T18:30:00+02:00',
     image:
       'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=640&q=80',
     category: 'Glazba',
@@ -10,7 +11,7 @@ export const upcomingEvents = [
   {
     id: '2',
     title: 'Noć Muzeja',
-    date: '12. Kolovoza 2026',
+    startAt: '2026-08-12T20:00:00+02:00',
     image:
       'https://images.unsplash.com/photo-1566127444979-b3d2b6d7b0fd?w=640&q=80',
     category: 'Kultura',
@@ -18,7 +19,7 @@ export const upcomingEvents = [
   {
     id: '3',
     title: 'Zagreb Film Festival',
-    date: '3. Rujna 2026',
+    startAt: '2026-09-03T19:00:00+02:00',
     image:
       'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=640&q=80',
     category: 'Film',
@@ -30,7 +31,7 @@ export const moreEvents = [
   {
     id: '4',
     title: 'Advent u Zagrebu',
-    date: '1. Prosinca 2026',
+    startAt: '2026-12-01T17:00:00+01:00',
     image:
       'https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=640&q=80',
     category: 'Sezonski',
@@ -38,7 +39,7 @@ export const moreEvents = [
   {
     id: '5',
     title: 'INmusic Festival',
-    date: '20. Lipnja 2026',
+    startAt: '2026-06-20T16:00:00+02:00',
     image:
       'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=640&q=80',
     category: 'Glazba',
@@ -46,7 +47,7 @@ export const moreEvents = [
   {
     id: '6',
     title: 'Kazališna premijera',
-    date: '8. Listopada 2026',
+    startAt: '2026-10-08T19:30:00+02:00',
     image:
       'https://images.unsplash.com/photo-1503095396549-807759245b35?w=640&q=80',
     category: 'Kazalište',

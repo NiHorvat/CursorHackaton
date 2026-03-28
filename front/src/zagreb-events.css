@@ -491,10 +491,163 @@
   outline-offset: 2px;
 }
 
+.ze-events-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .ze-events-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ze-events-layout__cal {
+  background: var(--ze-white);
+  border-radius: var(--ze-radius-md);
+  padding: 0.65rem 0.5rem 0.85rem;
+  box-shadow: var(--ze-shadow);
+}
+
+.ze-calendar {
+  width: 100%;
+  max-width: 100%;
+  border: none !important;
+  background: transparent !important;
+  font-family: var(--ze-sans);
+}
+
+.ze-calendar .react-calendar__navigation {
+  margin-bottom: 0.75rem;
+}
+
+.ze-calendar .react-calendar__navigation button {
+  border-radius: var(--ze-radius-sm);
+  font-weight: 600;
+  color: var(--ze-navy);
+  min-height: 38px;
+}
+
+.ze-calendar .react-calendar__navigation button:enabled:hover,
+.ze-calendar .react-calendar__navigation button:enabled:focus {
+  background: rgba(20, 42, 74, 0.08);
+}
+
+.ze-calendar .react-calendar__month-view__weekdays {
+  font-size: 0.68rem;
+  color: var(--ze-muted);
+}
+
+.ze-calendar .react-calendar__month-view__days__day--weekend {
+  color: var(--ze-navy-soft);
+}
+
+.ze-calendar .react-calendar__tile {
+  border-radius: 10px;
+  color: var(--ze-navy-soft);
+}
+
+.ze-calendar .react-calendar__tile:enabled:hover,
+.ze-calendar .react-calendar__tile:enabled:focus {
+  background: rgba(130, 170, 215, 0.35);
+}
+
+.ze-calendar .react-calendar__tile--now {
+  background: rgba(130, 170, 215, 0.45);
+  color: var(--ze-navy);
+}
+
+.ze-calendar .react-calendar__tile--now:enabled:hover,
+.ze-calendar .react-calendar__tile--now:enabled:focus {
+  background: rgba(130, 170, 215, 0.55);
+}
+
+.ze-calendar .react-calendar__tile--active {
+  background: var(--ze-navy) !important;
+  color: var(--ze-white) !important;
+}
+
+.ze-calendar .react-calendar__tile--active:enabled:hover,
+.ze-calendar .react-calendar__tile--active:enabled:focus {
+  background: var(--ze-navy-soft) !important;
+}
+
+/* Days with at least one event (after search filter): strong fill + ring */
+.ze-calendar .react-calendar__tile--has-event {
+  position: relative;
+  z-index: 0;
+  font-weight: 700;
+  color: var(--ze-navy);
+  background: linear-gradient(
+    165deg,
+    rgba(130, 180, 230, 0.55) 0%,
+    rgba(20, 42, 74, 0.14) 100%
+  ) !important;
+  box-shadow: inset 0 0 0 2px rgba(20, 42, 74, 0.32);
+}
+
+.ze-calendar
+  .react-calendar__tile--has-event.react-calendar__month-view__days__day--neighboringMonth {
+  opacity: 0.88;
+}
+
+.ze-calendar .react-calendar__tile--has-event:enabled:hover,
+.ze-calendar .react-calendar__tile--has-event:enabled:focus {
+  background: linear-gradient(
+    165deg,
+    rgba(130, 180, 230, 0.72) 0%,
+    rgba(20, 42, 74, 0.2) 100%
+  ) !important;
+  box-shadow: inset 0 0 0 2px rgba(20, 42, 74, 0.45);
+}
+
+.ze-calendar .react-calendar__tile--has-event.react-calendar__tile--now {
+  background: linear-gradient(
+    165deg,
+    rgba(20, 42, 74, 0.28) 0%,
+    rgba(100, 160, 220, 0.55) 100%
+  ) !important;
+  box-shadow: inset 0 0 0 2px var(--ze-navy);
+  color: var(--ze-navy);
+}
+
+.ze-calendar .react-calendar__tile--has-event.react-calendar__tile--now:enabled:hover,
+.ze-calendar .react-calendar__tile--has-event.react-calendar__tile--now:enabled:focus {
+  background: linear-gradient(
+    165deg,
+    rgba(20, 42, 74, 0.34) 0%,
+    rgba(100, 160, 220, 0.68) 100%
+  ) !important;
+}
+
+.ze-events-layout__list {
+  min-width: 0;
+}
+
+.ze-events-month-title {
+  font-family: var(--ze-serif);
+  font-weight: 700;
+  font-size: 1.35rem;
+  color: var(--ze-navy);
+  margin: 0 0 1rem;
+  text-align: left;
+}
+
+.ze-card-row--events-day {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
 .ze-empty {
   text-align: center;
   color: var(--ze-muted);
   margin: 2rem 0;
+}
+
+.ze-empty--left {
+  text-align: left;
+  margin-top: 0;
 }
 
 /* Newsletter */

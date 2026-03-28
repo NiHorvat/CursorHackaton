@@ -16,7 +16,7 @@ export function HomePage() {
         </h2>
         <div className="ze-card-row">
           {upcomingEvents.map((e) => (
-            <EventCard key={e.id} {...e} />
+            <EventCard key={e.id} {...e} detailTime={false} />
           ))}
         </div>
       </section>
