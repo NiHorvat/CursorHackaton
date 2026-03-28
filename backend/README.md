@@ -5,9 +5,7 @@ This folder contains two services that work together:
 | Service | Role | Default URL |
 |--------|------|-------------|
 | **nikola** | FastAPI app: loads places from Google Places into SQLite and serves them at `GET /api/v1/places`. | `http://127.0.0.1:8000` |
-| **AI_agent** | Node/Express + OpenAI: answers prompts and returns map-friendly recommendations; **places** always come from nikola over HTTP. | `http://127.0.0.1:3080` |
-
-Events in the agent are still **hardcoded** in `AI_agent/data.mjs` until you add a real events API.
+| **AI_agent** | Node/Express + OpenAI: answers prompts and returns map-friendly recommendations; **places** from nikola over HTTP; **events** from the local `events.json` snapshot (ship/update the file as needed). | `http://127.0.0.1:3080` |
 
 ---
 
@@ -81,6 +79,9 @@ Edit **`.env`**:
 | `PLACES_API_BASE_URL` | **Required** for place data. Must match nikola’s API root, e.g. `http://127.0.0.1:8000/api/v1`. |
 | `PORT` | Agent HTTP port (default `3080`). Change if the port is already in use. |
 | `OPENAI_MODEL` | Optional (default `gpt-4o-mini`). |
+| `EVENTS_TOOL_MAX_ITEMS` | Optional (default `250`). Max events **with coordinates** included in each `fetch_events_catalog` tool response (the full `events.json` is still loaded for lookups). |
+
+Keep **`AI_agent/events.json`** next to `server.mjs`. The process **exits on startup** if the file is missing or invalid JSON.
 
 Install and start:
 
@@ -107,6 +108,8 @@ Use `npm run dev` if you want the process to restart on file changes (`node --wa
 
 ### Health
 
+Includes counts from `events.json` (total rows vs rows with `lat`/`lng`, and the tool cap):
+
 ```bash
 curl -s http://127.0.0.1:3080/health
 ```
@@ -121,7 +124,7 @@ curl -s -X POST http://127.0.0.1:3080/chat \
 
 ### Map-style recommendations (JSON: summary + pins with lat/lng)
 
-The model calls the **places** tool (nikola) and the **events** tool (hardcoded). Pins for **places** use Google `id` values from nikola; coordinates are filled server-side from the same catalog.
+The model calls **`fetch_places_catalog`** (nikola) and **`fetch_events_catalog`** (`events.json`). **Place** pins use Google `id` strings from nikola. **Event** pins use **string** ids matching `events.json` (e.g. `"37"` for numeric id `37`). Only events that appear in the tool’s `items` array should be recommended for maps (the tool returns a **truncated** subset: sorted by `start_at`, with coordinates only; see `truncated` / `hint` in the tool payload). Enrichment still resolves any valid event id from the **full** file if the model returns it.
 
 ```bash
 curl -s -X POST http://127.0.0.1:3080/recommend \
@@ -151,6 +154,8 @@ Optional conversation context:
 | **Agent returns no place pins** | `PLACES_API_BASE_URL` wrong; nikola not running; or **`items` empty** — run nikola **sync** and verify `GET …/places`. |
 | **Tool returns `error` for places** | Missing `PLACES_API_BASE_URL`, nikola down, or network/firewall blocking `localhost`. |
 | **nikola won’t sync** | `config/secrets.json` Places key missing or invalid; billing/API enabled for Places in Google Cloud. |
+| **Agent exits at startup** | Missing or invalid `AI_agent/events.json`. |
+| **No event pins / model ignores events** | Many rows have `lat`/`lng` null; only geocoded events are sent in the tool. Increase `EVENTS_TOOL_MAX_ITEMS` if you need a wider window (still sorted by `start_at`). |
 
 ---
 
@@ -159,8 +164,9 @@ Optional conversation context:
 ```
 backend/
   nikola/          # FastAPI + SQLite + Google Places sync
-  AI_agent/        # Express + OpenAI; fetches places from nikola
+  AI_agent/        # Express + OpenAI; places from nikola; events from events.json
+    events.json    # snapshot: id, title, start_at, venue, lat/lng, url, source, …
   README.md        # this file
 ```
 
-The agent does **not** embed place rows; it always loads them from **`{PLACES_API_BASE_URL}/places`** when the model invokes `fetch_places_catalog`.
+The agent does **not** embed place rows; it loads them from **`{PLACES_API_BASE_URL}/places`** when the model invokes `fetch_places_catalog`. Events are read from **`events.json`** at process start.
