@@ -173,6 +173,9 @@ export function LeafletMap({
               {v.address ? (
                 <span className="ze-leaflet-popup__addr">{v.address}</span>
               ) : null}
+              {v.reason ? (
+                <p className="ze-leaflet-popup__reason">{v.reason}</p>
+              ) : null}
               <a
                 className="ze-leaflet-popup__gmaps"
                 href={googleMapsVenueUrl(v.lat, v.lng)}
@@ -224,6 +227,9 @@ export function LeafletMap({
               <strong className="ze-leaflet-popup__title">{p.venue}</strong>
               {p.address ? (
                 <span className="ze-leaflet-popup__addr">{p.address}</span>
+              ) : null}
+              {p.reason ? (
+                <p className="ze-leaflet-popup__reason">{p.reason}</p>
               ) : null}
               {p.rating != null ? (
                 <span className="ze-leaflet-popup__rating">

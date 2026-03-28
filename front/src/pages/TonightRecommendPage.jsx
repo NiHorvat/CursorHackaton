@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { fetchRecommend } from '../api/recommend'
+import { LeafletMap } from '../components/LeafletMap'
 import { TabSwitcher } from '../components/TabSwitcher'
 import { useLanguage } from '../i18n/LanguageContext'
+import { recommendPinsToLeafletInputs } from '../utils/recommendMapPins'
 
 function mapsHref(lat, lng) {
   return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
@@ -141,6 +143,12 @@ export function TonightRecommendPage() {
     }
   }, [message])
 
+  const { venues: mapVenues, places: mapPlaces } = useMemo(
+    () => recommendPinsToLeafletInputs(data?.pins),
+    [data?.pins],
+  )
+  const hasMapPins = mapVenues.length + mapPlaces.length > 0
+
   return (
     <>
       <TabSwitcher />
@@ -193,6 +201,21 @@ export function TonightRecommendPage() {
 
             {data.droppedInvalidPins ? (
               <p className="ze-tonight__note">{t('tonight.droppedPins')}</p>
+            ) : null}
+
+            {hasMapPins ? (
+              <div className="ze-tonight__map-block">
+                <h3 className="ze-tonight__map-title" id="tonight-map-heading">
+                  {t('tonight.mapTitle')}
+                </h3>
+                <div
+                  className="ze-map ze-map--leaflet ze-tonight__map"
+                  aria-label={t('tonight.mapAria')}
+                  aria-labelledby="tonight-map-heading"
+                >
+                  <LeafletMap venues={mapVenues} places={mapPlaces} />
+                </div>
+              </div>
             ) : null}
 
             {Array.isArray(data.pins) && data.pins.length > 0 ? (

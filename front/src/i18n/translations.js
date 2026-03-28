@@ -107,6 +107,8 @@ export const translations = {
       address: 'Adresa',
       type: 'Tip',
       openMap: 'Otvori na karti',
+      mapTitle: 'Karta preporuka',
+      mapAria: 'Zagreb, označene preporučene lokacije',
     },
   },
   en: {
@@ -215,6 +217,8 @@ export const translations = {
       address: 'Address',
       type: 'Type',
       openMap: 'Open on map',
+      mapTitle: 'Recommendation map',
+      mapAria: 'Zagreb map with recommended locations marked',
     },
   },
 }

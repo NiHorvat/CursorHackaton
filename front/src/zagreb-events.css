@@ -851,6 +851,13 @@ a.ze-card__link:focus-visible {
   margin-bottom: 0.35rem;
 }
 
+.ze-leaflet-popup__reason {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ze-navy-soft);
+}
+
 .ze-leaflet-popup__gmaps {
   display: inline-block;
   margin-bottom: 0.5rem;
@@ -1287,6 +1294,34 @@ a.ze-card__link:focus-visible {
   color: var(--ze-muted);
   margin: 0 0 1rem;
   text-align: left;
+}
+
+.ze-tonight__map-block {
+  margin-bottom: 1.75rem;
+}
+
+.ze-tonight__map-title {
+  font-family: var(--ze-serif);
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+  text-align: left;
+  background: linear-gradient(
+    90deg,
+    var(--ze-navy) 0%,
+    var(--ze-accent-sky) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ze-tonight__map {
+  border-radius: var(--ze-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--ze-shadow-hover);
+  border: 1px solid rgba(72, 149, 239, 0.22);
+  min-height: 380px;
 }
 
 .ze-tonight__grid {
