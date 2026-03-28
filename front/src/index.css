@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --ze-navy: #142a4a;
+  --ze-navy-soft: #1e3a5f;
+  --ze-bg: #e6eef6;
+  --ze-bg-deep: #d4e2f0;
+  --ze-white: #ffffff;
+  --ze-tab-inactive: #9ebfe0;
+  --ze-tab-inactive-bg: rgba(120, 160, 210, 0.35);
+  --ze-muted: #5a6b7d;
+  --ze-radius-lg: 28px;
+  --ze-radius-md: 18px;
+  --ze-radius-sm: 12px;
+  --ze-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --ze-sans: 'Source Sans 3', system-ui, -apple-system, Segoe UI, sans-serif;
+  --ze-shadow: 0 18px 40px rgba(20, 42, 74, 0.08);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--ze-sans);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ze-navy-soft);
+  background: var(--ze-bg);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.ze-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
