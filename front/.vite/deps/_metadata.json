@@ -1,47 +1,59 @@
 {
-  "hash": "6e4dabad",
-  "configHash": "d11f20cc",
-  "lockfileHash": "938a673d",
-  "browserHash": "50a5adbc",
+  "hash": "fb9314c2",
+  "configHash": "c51c0b44",
+  "lockfileHash": "19d2c843",
+  "browserHash": "6154b0e1",
   "optimized": {
+    "leaflet": {
+      "src": "../../node_modules/leaflet/dist/leaflet-src.js",
+      "file": "leaflet.js",
+      "fileHash": "16677c59",
+      "needsInterop": true
+    },
     "react-calendar": {
       "src": "../../node_modules/react-calendar/dist/index.js",
       "file": "react-calendar.js",
-      "fileHash": "02adeecb",
+      "fileHash": "10a8ee9f",
       "needsInterop": false
     },
     "react-dom/client": {
       "src": "../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "a16ef880",
+      "fileHash": "9579d4b2",
       "needsInterop": true
+    },
+    "react-leaflet": {
+      "src": "../../node_modules/react-leaflet/lib/index.js",
+      "file": "react-leaflet.js",
+      "fileHash": "f5791587",
+      "needsInterop": false
     },
     "react-router-dom": {
       "src": "../../node_modules/react-router-dom/dist/index.mjs",
       "file": "react-router-dom.js",
-      "fileHash": "14a369eb",
+      "fileHash": "bf4cdb0d",
       "needsInterop": false
     },
     "react": {
       "src": "../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "808b9374",
+      "fileHash": "e735e6d4",
       "needsInterop": true
     },
     "react/jsx-dev-runtime": {
       "src": "../../node_modules/react/jsx-dev-runtime.js",
       "file": "react_jsx-dev-runtime.js",
-      "fileHash": "aa05b048",
+      "fileHash": "e89e1ba7",
       "needsInterop": true
     }
   },
   "chunks": {
-    "react-TUYU05Ph": {
-      "file": "react-TUYU05Ph.js",
+    "chunk-BVTlhY3a": {
+      "file": "chunk-BVTlhY3a.js",
       "isDynamicEntry": false
     },
-    "react-dom-DMGCgcj7": {
-      "file": "react-dom-DMGCgcj7.js",
+    "react-dom-oqhOWQSG": {
+      "file": "react-dom-oqhOWQSG.js",
       "isDynamicEntry": false
     }
   }

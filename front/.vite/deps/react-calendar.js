@@ -1,4 +1,5 @@
-import { n as __commonJSMin, r as __toESM, t as require_react } from "./react-TUYU05Ph.js";
+import { n as __toESM, t as __commonJSMin } from "./chunk-BVTlhY3a.js";
+import { t as require_react } from "./react.js";
 //#region node_modules/react/cjs/react-jsx-runtime.development.js
 /**
 * @license React
