@@ -48,7 +48,7 @@ export const translations = {
     map: {
       title: 'Karta Događanja',
       intro:
-        'Lokacije događaja iz baze podataka (OpenStreetMap). Označena su mjesta s poznatim koordinatama.',
+        'Lokacije događaja i preporučena mjesta za izlazak (OpenStreetMap). Plavi markeri su vezani uz događaje; zeleni označavaju mjesta iz preporuke. Ako se preklapaju, prikazuje se preporuka.',
       cat1Title: 'Koncerti i Klubovi',
       cat1Desc:
         'Otkrij live nastupe, festivale i noćni život širom grada — od intimnih klubova do velikih pozornica.',
@@ -56,7 +56,7 @@ export const translations = {
       cat2Desc:
         'Premijere, izložbe i kulturna bastina: najbolja kazališta i muzeji na jednom mjestu.',
       nearMe: 'Blizu mene',
-      nearHint: '(događaji unutar {km} km)',
+      nearHint: '(događaji i mjesta unutar {km} km)',
       geoLoading: 'Dohvaćanje lokacije…',
       geoUnsupported: 'Geolokacija nije podržana u ovom pregledniku.',
       geoDenied:
@@ -64,9 +64,12 @@ export const translations = {
       geoFailed: 'Nije moguće dohvatiti tvoju lokaciju.',
       nearCount: 'Prikazano: {n} lokacija u radijusu',
       nearEmpty:
-        'Nema lokacija događaja unutar {km} km. Isključi "Blizu mene" za sve lokacije — karta ipak prikazuje tvoj radijus.',
+        'Nema lokacija događaja ni preporučenih mjesta unutar {km} km. Isključi "Blizu mene" za sve lokacije — karta ipak prikazuje tvoj radijus.',
       mapAria: 'Interaktivna karta Zagreba s označenim lokacijama',
-      leafletNoCoords: 'Nema događaja s poznatim koordinatama u podacima.',
+      leafletNoCoords: 'Nema lokacija događaja ni preporučenih mjesta s koordinatama.',
+      popupBadgeEvent: 'Događaj',
+      popupBadgePlace: 'Mjesto',
+      popupPlaceRating: '{rating} ★ ({n} recenzija)',
       popupEvents1: 'događaj',
       popupEventsN: 'događaja',
       popupMore: '… i {n} još',
@@ -154,7 +157,7 @@ export const translations = {
     map: {
       title: 'Event map',
       intro:
-        'Event locations from the database (OpenStreetMap). Places with known coordinates are marked.',
+        'Event locations and recommended places to go (OpenStreetMap). Blue markers are tied to events; teal markers are curated places. When they overlap, the place pin is shown.',
       cat1Title: 'Concerts & clubs',
       cat1Desc:
         'Discover live shows, festivals, and nightlife across the city — from intimate clubs to big stages.',
@@ -162,16 +165,19 @@ export const translations = {
       cat2Desc:
         'Premieres, exhibitions, and culture: theatres and museums in one place.',
       nearMe: 'Near me',
-      nearHint: '(events within {km} km)',
+      nearHint: '(events & places within {km} km)',
       geoLoading: 'Getting your location…',
       geoUnsupported: 'Geolocation is not supported in this browser.',
       geoDenied: 'Location access was denied. Allow location in your browser.',
       geoFailed: 'Could not get your location.',
       nearCount: 'Showing: {n} locations in radius',
       nearEmpty:
-        'No event locations within {km} km. Turn off "Near me" for all locations — the map still shows your radius.',
+        'No event or recommended place locations within {km} km. Turn off "Near me" for all locations — the map still shows your radius.',
       mapAria: 'Interactive map of Zagreb with marked locations',
-      leafletNoCoords: 'No events with known coordinates in the data.',
+      leafletNoCoords: 'No event or place locations with coordinates.',
+      popupBadgeEvent: 'Event',
+      popupBadgePlace: 'Place',
+      popupPlaceRating: '{rating} ★ ({n} reviews)',
       popupEvents1: 'event',
       popupEventsN: 'events',
       popupMore: '… and {n} more',

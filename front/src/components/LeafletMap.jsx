@@ -19,6 +19,14 @@ import { useLanguage } from '../i18n/LanguageContext'
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({ iconRetinaUrl, iconUrl, shadowUrl })
 
+const placePinIcon = L.divIcon({
+  className: 'ze-leaflet-marker-place',
+  html: '<span class="ze-leaflet-marker-place__pin" aria-hidden="true"></span>',
+  iconSize: [32, 40],
+  iconAnchor: [16, 38],
+  popupAnchor: [0, -32],
+})
+
 const ZAGREB = [45.815, 15.9819]
 const NEAR_RADIUS_M = 1000
 
@@ -59,7 +67,7 @@ function approximateCircleBounds(lat, lng, radiusM) {
   )
 }
 
-function computeBounds(venues, userPosition, showUserRadius) {
+function computeBounds(venues, places, userPosition, showUserRadius) {
   const points = []
   if (userPosition && showUserRadius) {
     const ring = approximateCircleBounds(
@@ -72,6 +80,9 @@ function computeBounds(venues, userPosition, showUserRadius) {
   for (const v of venues) {
     points.push([v.lat, v.lng])
   }
+  for (const p of places) {
+    points.push([p.lat, p.lng])
+  }
   if (!points.length) return null
   const b = L.latLngBounds(points[0], points[0])
   for (let i = 1; i < points.length; i++) {
@@ -80,20 +91,30 @@ function computeBounds(venues, userPosition, showUserRadius) {
   return b.isValid() ? b : null
 }
 
+function formatPlaceTypes(types) {
+  if (!types?.length) return ''
+  return types
+    .slice(0, 5)
+    .map((t) => String(t).replace(/_/g, ' '))
+    .join(', ')
+}
+
 export function LeafletMap({
   venues,
+  places = [],
   userPosition = null,
   showNearMeOverlay = false,
 }) {
   const { t, intlLocale } = useLanguage()
 
   const bounds = useMemo(
-    () => computeBounds(venues, userPosition, showNearMeOverlay),
-    [venues, userPosition, showNearMeOverlay],
+    () => computeBounds(venues, places, userPosition, showNearMeOverlay),
+    [venues, places, userPosition, showNearMeOverlay],
   )
 
+  const hasPins = venues.length > 0 || places.length > 0
   const showMap =
-    venues.length > 0 || (showNearMeOverlay && userPosition != null)
+    hasPins || (showNearMeOverlay && userPosition != null)
 
   if (!showMap) {
     return (
@@ -145,6 +166,9 @@ export function LeafletMap({
         <Marker key={v.id} position={[v.lat, v.lng]}>
           <Popup>
             <div className="ze-leaflet-popup">
+              <span className="ze-leaflet-popup__badge ze-leaflet-popup__badge--event">
+                {t('map.popupBadgeEvent')}
+              </span>
               <strong className="ze-leaflet-popup__title">{v.venue}</strong>
               {v.address ? (
                 <span className="ze-leaflet-popup__addr">{v.address}</span>
@@ -181,6 +205,47 @@ export function LeafletMap({
                   </li>
                 ) : null}
               </ul>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+      {places.map((p) => (
+        <Marker
+          key={p.id}
+          position={[p.lat, p.lng]}
+          icon={placePinIcon}
+          zIndexOffset={500}
+        >
+          <Popup>
+            <div className="ze-leaflet-popup ze-leaflet-popup--place">
+              <span className="ze-leaflet-popup__badge ze-leaflet-popup__badge--place">
+                {t('map.popupBadgePlace')}
+              </span>
+              <strong className="ze-leaflet-popup__title">{p.venue}</strong>
+              {p.address ? (
+                <span className="ze-leaflet-popup__addr">{p.address}</span>
+              ) : null}
+              {p.rating != null ? (
+                <span className="ze-leaflet-popup__rating">
+                  {t('map.popupPlaceRating', {
+                    rating: Number(p.rating).toFixed(1),
+                    n: p.userRatingsTotal ?? 0,
+                  })}
+                </span>
+              ) : null}
+              {formatPlaceTypes(p.types) ? (
+                <span className="ze-leaflet-popup__types">
+                  {formatPlaceTypes(p.types)}
+                </span>
+              ) : null}
+              <a
+                className="ze-leaflet-popup__gmaps ze-leaflet-popup__gmaps--place"
+                href={googleMapsVenueUrl(p.lat, p.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('map.openGoogleMaps')}
+              </a>
             </div>
           </Popup>
         </Marker>

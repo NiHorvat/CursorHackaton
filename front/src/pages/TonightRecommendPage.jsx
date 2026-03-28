@@ -25,15 +25,15 @@ function EventPinCard({ pin }) {
         </div>
         <div>
           <dt>{t('tonight.category')}</dt>
-          <dd>{pin.category}</dd>
+          <dd>{pin.category ?? '—'}</dd>
         </div>
         <div>
           <dt>{t('tonight.area')}</dt>
-          <dd>{pin.area}</dd>
+          <dd>{pin.area ?? '—'}</dd>
         </div>
         <div>
           <dt>{t('tonight.address')}</dt>
-          <dd>{pin.address}</dd>
+          <dd>{pin.address ?? '—'}</dd>
         </div>
       </dl>
       <a
@@ -60,15 +60,19 @@ function PlacePinCard({ pin }) {
       <dl className="ze-rec-card__meta">
         <div>
           <dt>{t('tonight.type')}</dt>
-          <dd>{pin.type.replace(/_/g, ' ')}</dd>
+          <dd>
+            {(pin.type ?? pin.primary_type ?? pin.types?.[0] ?? '—')
+              .toString()
+              .replace(/_/g, ' ')}
+          </dd>
         </div>
         <div>
           <dt>{t('tonight.area')}</dt>
-          <dd>{pin.area}</dd>
+          <dd>{pin.area ?? '—'}</dd>
         </div>
         <div>
           <dt>{t('tonight.address')}</dt>
-          <dd>{pin.address}</dd>
+          <dd>{pin.address ?? '—'}</dd>
         </div>
       </dl>
       <a
@@ -100,26 +104,40 @@ export function TonightRecommendPage() {
     }
 
     let cancelled = false
+    const controller = new AbortController()
+    const timeoutMs = 180000
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
     setLoading(true)
     setError(null)
     setData(null)
 
-    fetchRecommend(message)
+    fetchRecommend(message, controller.signal)
       .then((json) => {
         if (!cancelled) setData(json)
       })
       .catch((err) => {
-        if (!cancelled)
-          setError(
-            err instanceof Error ? err.message : 'Request failed',
-          )
+        if (!cancelled) {
+          if (err?.name === 'AbortError') {
+            setError(
+              `Request timed out after ${timeoutMs / 1000}s. The AI server may be slow or unreachable.`,
+            )
+          } else {
+            setError(
+              err instanceof Error ? err.message : 'Request failed',
+            )
+          }
+        }
       })
       .finally(() => {
+        clearTimeout(timer)
         if (!cancelled) setLoading(false)
       })
 
     return () => {
       cancelled = true
+      clearTimeout(timer)
+      controller.abort()
     }
   }, [message])
 

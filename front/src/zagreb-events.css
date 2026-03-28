@@ -771,10 +771,72 @@ a.ze-card__link:focus-visible {
   line-height: 1.45;
 }
 
+.ze-leaflet-marker-place {
+  background: transparent !important;
+  border: none !important;
+}
+
+.ze-leaflet-marker-place__pin {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  margin: 2px auto 0;
+  background: linear-gradient(
+    145deg,
+    var(--ze-accent-mint, #2ec4b6) 0%,
+    #0f766e 100%
+  );
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.45);
+}
+
 .ze-leaflet-popup {
   font-size: 0.9rem;
   line-height: 1.35;
   max-width: 260px;
+}
+
+.ze-leaflet-popup__badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  margin-bottom: 0.35rem;
+}
+
+.ze-leaflet-popup__badge--event {
+  background: rgba(72, 149, 239, 0.35);
+  color: var(--ze-navy);
+}
+
+.ze-leaflet-popup__badge--place {
+  background: rgba(46, 196, 182, 0.4);
+  color: var(--ze-navy);
+}
+
+.ze-leaflet-popup__rating {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ze-navy-soft);
+  margin-bottom: 0.35rem;
+}
+
+.ze-leaflet-popup__types {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ze-muted);
+  line-height: 1.35;
+  margin-bottom: 0.45rem;
+}
+
+.ze-leaflet-popup__gmaps--place {
+  margin-top: 0.25rem;
 }
 
 .ze-leaflet-popup__title {

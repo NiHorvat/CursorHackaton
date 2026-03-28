@@ -1,13 +1,13 @@
 import dotenv from "dotenv";
+import cors from "cors";
 import { readFileSync } from "fs";
+import OpenAI from "openai";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import express from "express";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, ".env") });
-import cors from "cors";
-import OpenAI from "openai";
 
 const EVENTS_PATH = join(__dirname, "events.json");
 
@@ -348,11 +348,14 @@ function enrichPins(pins) {
       address: row.address ?? null,
     };
     if (pin.kind === "place") {
+      const typeLabel =
+        row.primary_type ?? (Array.isArray(row.types) ? row.types[0] : null) ?? "place";
       out.push({
         ...base,
         lat,
         lng,
         name: row.name,
+        type: typeLabel,
         primary_type: row.primary_type,
         types: row.types,
         query_id: row.query_id,
@@ -360,6 +363,7 @@ function enrichPins(pins) {
         user_ratings_total: row.user_ratings_total,
         last_synced_at: row.last_synced_at,
         reviews: row.reviews,
+        area: row.area ?? null,
       });
     } else {
       if (lat == null || lng == null) continue;
@@ -376,6 +380,7 @@ function enrichPins(pins) {
         lng,
         title: row.title,
         venue: row.venue,
+        category: row.category ?? null,
         start_at: row.start_at,
         end_at: row.end_at,
         url: row.url,
@@ -383,6 +388,7 @@ function enrichPins(pins) {
         external_key: row.external_key,
         date,
         time,
+        area: row.area ?? null,
       });
     }
   }
@@ -458,6 +464,24 @@ async function runAgentTurn(userMessage, history = []) {
   };
 }
 
+function parseStructuredRecommendationContent(content) {
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("Empty structured response from model");
+  }
+  const trimmed = content.trim();
+  const fence = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/im);
+  const jsonStr = fence ? fence[1].trim() : trimmed;
+  return JSON.parse(jsonStr);
+}
+
+function openAIErrorMessage(err) {
+  if (!err) return "Unknown error";
+  const apiMsg = err?.response?.data?.error?.message;
+  if (typeof apiMsg === "string" && apiMsg.trim()) return apiMsg;
+  if (typeof err.message === "string") return err.message;
+  return String(err);
+}
+
 async function runRecommendTurn(userMessage, history = []) {
   const messages = [
     { role: "system", content: RECOMMEND_SYSTEM_PROMPT },
@@ -520,11 +544,15 @@ async function runRecommendTurn(userMessage, history = []) {
   });
 
   const content = jsonResponse.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("Empty structured response from model");
+  let parsed;
+  try {
+    parsed = parseStructuredRecommendationContent(content);
+  } catch (parseErr) {
+    throw new Error(
+      `Invalid JSON from model: ${parseErr.message}. Raw (first 400 chars): ${String(content).slice(0, 400)}`,
+    );
   }
 
-  const parsed = JSON.parse(content);
   const pins = enrichPins(parsed.pins);
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary : "",
@@ -586,7 +614,7 @@ app.post("/chat", async (req, res) => {
     console.error(err);
     res.status(502).json({
       error: "OpenAI request failed",
-      detail: err.message,
+      detail: openAIErrorMessage(err),
     });
   }
 });
@@ -610,7 +638,7 @@ app.post("/recommend", async (req, res) => {
     console.error(err);
     res.status(502).json({
       error: "OpenAI request failed",
-      detail: err.message,
+      detail: openAIErrorMessage(err),
     });
   }
 });

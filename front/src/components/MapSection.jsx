@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { placeLocations } from '../data/placesFromData'
 import { venueLocations } from '../data/venueLocations'
 import { useLanguage } from '../i18n/LanguageContext'
 import { filterVenuesWithinKm } from '../utils/geo'
+import { mergeMapPins } from '../utils/mapPins'
 import { CategoryIcon } from './CategoryIcon'
 import { LeafletMap } from './LeafletMap'
 
@@ -66,10 +68,22 @@ export function MapSection() {
     )
   }, [nearMe])
 
+  const { venues: baseVenues, places: basePlaces } = useMemo(
+    () => mergeMapPins(venueLocations, placeLocations),
+    [],
+  )
+
   const displayedVenues = useMemo(() => {
-    if (!nearMe || !userPos) return venueLocations
-    return filterVenuesWithinKm(venueLocations, userPos.lat, userPos.lng, NEAR_KM)
-  }, [nearMe, userPos])
+    if (!nearMe || !userPos) return baseVenues
+    return filterVenuesWithinKm(baseVenues, userPos.lat, userPos.lng, NEAR_KM)
+  }, [nearMe, userPos, baseVenues])
+
+  const displayedPlaces = useMemo(() => {
+    if (!nearMe || !userPos) return basePlaces
+    return filterVenuesWithinKm(basePlaces, userPos.lat, userPos.lng, NEAR_KM)
+  }, [nearMe, userPos, basePlaces])
+
+  const pinCountInRadius = displayedVenues.length + displayedPlaces.length
 
   const showNearMeOverlay = Boolean(nearMe && userPos)
 
@@ -133,7 +147,7 @@ export function MapSection() {
               </span>
             ) : null}
           </div>
-          {nearMe && userPos && displayedVenues.length === 0 ? (
+          {nearMe && userPos && pinCountInRadius === 0 ? (
             <p className="ze-map-near-banner" role="status">
               {t('map.nearEmpty', { km: NEAR_KM })}
             </p>
@@ -144,6 +158,7 @@ export function MapSection() {
           >
             <LeafletMap
               venues={displayedVenues}
+              places={displayedPlaces}
               userPosition={userPos}
               showNearMeOverlay={showNearMeOverlay}
             />
