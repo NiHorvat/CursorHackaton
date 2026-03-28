@@ -16,6 +16,16 @@ export function isEventInMonth(iso, monthAnchor) {
   )
 }
 
+/** Event falls in the same ISO week (Mon–Sun, local) as `weekStartMonday`. */
+export function isEventInWeek(iso, weekStartMonday) {
+  const d = new Date(iso)
+  const ws = new Date(weekStartMonday)
+  ws.setHours(0, 0, 0, 0)
+  const we = new Date(ws)
+  we.setDate(we.getDate() + 7)
+  return d >= ws && d < we
+}
+
 /** @param {string} iso @param {string} intlLocale e.g. `hr-HR` or `en-GB` */
 export function formatEventDateOnly(iso, intlLocale = 'hr-HR') {
   return new Intl.DateTimeFormat(intlLocale, {

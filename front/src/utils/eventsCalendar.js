@@ -38,3 +38,50 @@ export function defaultCalendarActiveStart(events) {
   const d = getDefaultSelectedDate(events)
   return startOfMonth(d)
 }
+
+/** Monday 00:00 local (ISO week) for the week containing `d`. */
+export function startOfWeekMonday(d) {
+  const x = startOfLocalDay(new Date(d))
+  const day = x.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  x.setDate(x.getDate() + diff)
+  return x
+}
+
+/** Monday of the week containing the default “next” event day (or today). */
+export function defaultWeekStart(events) {
+  return startOfWeekMonday(getDefaultSelectedDate(events))
+}
+
+/** Whether a calendar `date` (local midnight) falls in the week starting `weekStartMonday`. */
+export function isDateInSelectedWeek(date, weekStartMonday) {
+  const ws = startOfLocalDay(new Date(weekStartMonday))
+  const we = new Date(ws)
+  we.setDate(we.getDate() + 7)
+  const t = startOfLocalDay(date).getTime()
+  return t >= ws.getTime() && t < we.getTime()
+}
+
+/** Human-readable Mon–Sun range, e.g. "3 Mar – 9 Mar 2025". */
+export function formatWeekRangeLabel(weekStartMonday, intlLocale) {
+  const end = new Date(weekStartMonday)
+  end.setDate(end.getDate() + 6)
+  try {
+    const fmt = new Intl.DateTimeFormat(intlLocale, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+    if (typeof fmt.formatRange === 'function') {
+      return fmt.formatRange(weekStartMonday, end)
+    }
+  } catch {
+    /* ignore */
+  }
+  const fmt = new Intl.DateTimeFormat(intlLocale, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  return `${fmt.format(weekStartMonday)} – ${fmt.format(end)}`
+}

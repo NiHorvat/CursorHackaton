@@ -5,6 +5,10 @@ export function Header() {
   const { pathname } = useLocation()
   const { t, toggleLocale } = useLanguage()
 
+  const eventsNavActive =
+    pathname.startsWith('/eventovi') && !pathname.startsWith('/eventovi/favoriti')
+  const favoritesNavActive = pathname.startsWith('/eventovi/favoriti')
+
   return (
     <header className="ze-header">
       <NavLink to="/" className="ze-logo" end>
@@ -31,10 +35,18 @@ export function Header() {
         <NavLink
           to="/eventovi"
           className={() =>
-            `ze-nav__link${pathname.startsWith('/eventovi') ? ' ze-nav__link--active' : ''}`
+            `ze-nav__link${eventsNavActive ? ' ze-nav__link--active' : ''}`
           }
         >
           {t('nav.events')}
+        </NavLink>
+        <NavLink
+          to="/eventovi/favoriti"
+          className={() =>
+            `ze-nav__link${favoritesNavActive ? ' ze-nav__link--active' : ''}`
+          }
+        >
+          {t('nav.favorites')}
         </NavLink>
       </nav>
       <button

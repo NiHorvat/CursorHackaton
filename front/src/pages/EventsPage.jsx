@@ -1,24 +1,34 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { TabSwitcher } from '../components/TabSwitcher'
 import { EventCard } from '../components/EventCard'
 import { moreEvents } from '../data/eventsFromData'
 import { useLanguage } from '../i18n/LanguageContext'
-import { isEventInMonth } from '../utils/eventDates'
+import { isEventInWeek } from '../utils/eventDates'
 import {
-  defaultCalendarActiveStart,
+  defaultWeekStart,
+  formatWeekRangeLabel,
   getDayKeyLocal,
+  isDateInSelectedWeek,
   startOfLocalDay,
   startOfMonth,
+  startOfWeekMonday,
 } from '../utils/eventsCalendar'
 
 export function EventsPage() {
   const { t, intlLocale } = useLanguage()
   const [query, setQuery] = useState('')
-  const [activeMonth, setActiveMonth] = useState(() =>
-    defaultCalendarActiveStart(moreEvents),
+  const [activeWeekStart, setActiveWeekStart] = useState(() =>
+    defaultWeekStart(moreEvents),
   )
+  const [calendarViewMonth, setCalendarViewMonth] = useState(() =>
+    startOfMonth(defaultWeekStart(moreEvents)),
+  )
+
+  useEffect(() => {
+    setCalendarViewMonth(startOfMonth(activeWeekStart))
+  }, [activeWeekStart])
 
   const filteredBySearch = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -38,20 +48,25 @@ export function EventsPage() {
     return set
   }, [filteredBySearch])
 
-  const eventsForSelectedMonth = useMemo(() => {
+  const eventsForSelectedWeek = useMemo(() => {
     return filteredBySearch
-      .filter((e) => isEventInMonth(e.startAt, activeMonth))
+      .filter((e) => isEventInWeek(e.startAt, activeWeekStart))
       .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
-  }, [filteredBySearch, activeMonth])
+  }, [filteredBySearch, activeWeekStart])
 
-  const monthLabel = useMemo(() => {
-    return new Intl.DateTimeFormat(intlLocale, {
-      month: 'long',
-      year: 'numeric',
-    }).format(activeMonth)
-  }, [activeMonth, intlLocale])
+  const weekLabel = useMemo(() => {
+    return formatWeekRangeLabel(activeWeekStart, intlLocale)
+  }, [activeWeekStart, intlLocale])
 
   const calLocale = intlLocale === 'en-GB' ? 'en-GB' : 'hr-HR'
+
+  const navigateWeek = (deltaDays) => {
+    setActiveWeekStart((w) => {
+      const d = new Date(w)
+      d.setDate(d.getDate() + deltaDays)
+      return startOfWeekMonday(d)
+    })
+  }
 
   return (
     <>
@@ -80,39 +95,63 @@ export function EventsPage() {
 
         <div className="ze-events-layout">
           <div className="ze-events-layout__cal">
+            <div className="ze-week-nav">
+              <button
+                type="button"
+                className="ze-week-nav__btn"
+                onClick={() => navigateWeek(-7)}
+                aria-label={t('events.weekPrev')}
+              >
+                ‹
+              </button>
+              <span className="ze-week-nav__label">{weekLabel}</span>
+              <button
+                type="button"
+                className="ze-week-nav__btn"
+                onClick={() => navigateWeek(7)}
+                aria-label={t('events.weekNext')}
+              >
+                ›
+              </button>
+            </div>
             <Calendar
               className="ze-calendar"
               locale={calLocale}
               calendarType="iso8601"
               minDetail="month"
               maxDetail="month"
-              activeStartDate={activeMonth}
+              activeStartDate={calendarViewMonth}
               onActiveStartDateChange={({ activeStartDate }) => {
-                setActiveMonth(startOfMonth(activeStartDate))
+                setCalendarViewMonth(startOfMonth(activeStartDate))
               }}
               value={null}
               onChange={(v) => {
                 const d = Array.isArray(v) ? v[0] : v
-                if (d) setActiveMonth(startOfMonth(d))
+                if (d) setActiveWeekStart(startOfWeekMonday(d))
               }}
               tileClassName={({ date, view }) => {
                 if (view !== 'month') return null
-                return eventDayKeys.has(getDayKeyLocal(date))
-                  ? 'ze-calendar__tile--has-event'
-                  : null
+                const parts = []
+                if (eventDayKeys.has(getDayKeyLocal(date))) {
+                  parts.push('ze-calendar__tile--has-event')
+                }
+                if (isDateInSelectedWeek(date, activeWeekStart)) {
+                  parts.push('ze-calendar__tile--in-week')
+                }
+                return parts.length ? parts.join(' ') : null
               }}
             />
           </div>
 
           <div className="ze-events-layout__list">
-            <h3 className="ze-events-month-title" id="events-month-label">
-              {monthLabel}
+            <h3 className="ze-events-week-title" id="events-week-label">
+              {weekLabel}
             </h3>
-            {eventsForSelectedMonth.length === 0 ? (
-              <p className="ze-empty ze-empty--left">{t('events.emptyMonth')}</p>
+            {eventsForSelectedWeek.length === 0 ? (
+              <p className="ze-empty ze-empty--left">{t('events.emptyWeek')}</p>
             ) : (
-              <div className="ze-card-row ze-card-row--wrap ze-card-row--events-day">
-                {eventsForSelectedMonth.map((e) => (
+              <div className="ze-card-row ze-card-row--wrap ze-card-row--events-week">
+                {eventsForSelectedWeek.map((e) => (
                   <EventCard key={e.id} {...e} />
                 ))}
               </div>

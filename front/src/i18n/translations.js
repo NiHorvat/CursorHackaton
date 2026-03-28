@@ -6,6 +6,7 @@ export const translations = {
       home: 'Početna',
       locations: 'Lokacije',
       events: 'Eventovi',
+      favorites: 'Favoriti',
       langButton: 'English',
       langTitle: 'Prebaci na engleski',
     },
@@ -26,13 +27,23 @@ export const translations = {
     tabs: {
       aria: 'Lokacije i eventovi',
     },
+    favorites: {
+      title: 'Favoriti',
+      intro: 'Događaji koje si spremio. Sprema se u ovom pregledniku.',
+      empty: 'Još nemaš spremljenih događaja. Dodaj ih tipkom ♥ na kartici događaja.',
+      add: 'Dodaj u favorite',
+      remove: 'Ukloni iz favorita',
+      backToAll: '← Svi eventovi',
+    },
     events: {
       title: 'Svi Eventovi',
       intro:
-        'Pomiči kalendar ili odaberi dan — prikazuju se svi događaji u tom mjesecu, poredani po datumu i vremenu. Dani s događajima označeni su na kalendaru.',
+        'Odaberi dan u kalendaru ili pomiči tjedan strelicama — prikazuju se događaji u tom tjednu, poredani po datumu i vremenu. Dani s događajima označeni su; odabrani tjedan je istaknut.',
       searchLabel: 'Pretraga eventova',
       searchPlaceholder: 'Pretraži po nazivu ili kategoriji…',
-      emptyMonth: 'Nema događaja u ovom mjesecu za trenutni upit.',
+      weekPrev: 'Prethodni tjedan',
+      weekNext: 'Sljedeći tjedan',
+      emptyWeek: 'Nema događaja u ovom tjednu za trenutni upit.',
     },
     map: {
       title: 'Karta Događanja',
@@ -101,6 +112,7 @@ export const translations = {
       home: 'Home',
       locations: 'Locations',
       events: 'Events',
+      favorites: 'Favorites',
       langButton: 'Hrvatski',
       langTitle: 'Switch to Croatian',
     },
@@ -121,13 +133,23 @@ export const translations = {
     tabs: {
       aria: 'Locations and events',
     },
+    favorites: {
+      title: 'Favorites',
+      intro: 'Events you saved. Stored in this browser only.',
+      empty: 'No saved events yet. Add some with the ♥ button on an event card.',
+      add: 'Add to favorites',
+      remove: 'Remove from favorites',
+      backToAll: '← All events',
+    },
     events: {
       title: 'All events',
       intro:
-        'Use the calendar or pick a day — events for that month are shown, sorted by date and time. Days with events are highlighted.',
+        'Pick a day on the calendar or step the week with the arrows — events for that week are shown, sorted by date and time. Days with events are highlighted; the selected week is marked.',
       searchLabel: 'Search events',
       searchPlaceholder: 'Search by name or category…',
-      emptyMonth: 'No events this month for the current search.',
+      weekPrev: 'Previous week',
+      weekNext: 'Next week',
+      emptyWeek: 'No events this week for the current search.',
     },
     map: {
       title: 'Event map',
