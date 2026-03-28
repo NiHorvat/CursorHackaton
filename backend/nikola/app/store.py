@@ -1,79 +1,47 @@
-"""SQLite persistence for places and reviews."""
+"""JSON file persistence for places and reviews (places_data.json)."""
 
 from __future__ import annotations
 
 import json
-import sqlite3
-from collections import defaultdict
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 MAX_REVIEWS_PER_PLACE = 10
 
 
-def upsert_place(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
-    raw = row.get("raw_json")
-    raw_s = json.dumps(raw, ensure_ascii=False) if isinstance(raw, dict) else str(raw or "")
-    types_s = json.dumps(row.get("types_json") or [], ensure_ascii=False)
-    conn.execute(
-        """
-        INSERT INTO places (
-            place_id, name, lat, lng, types_json, rating, ratings_total,
-            address, raw_json, query_id, last_synced_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(place_id) DO UPDATE SET
-            name = excluded.name,
-            lat = COALESCE(excluded.lat, places.lat),
-            lng = COALESCE(excluded.lng, places.lng),
-            types_json = excluded.types_json,
-            rating = COALESCE(excluded.rating, places.rating),
-            ratings_total = COALESCE(excluded.ratings_total, places.ratings_total),
-            address = COALESCE(excluded.address, places.address),
-            raw_json = excluded.raw_json,
-            query_id = excluded.query_id,
-            last_synced_at = excluded.last_synced_at
-        """,
-        (
-            row["place_id"],
-            row["name"],
-            row.get("lat"),
-            row.get("lng"),
-            types_s,
-            row.get("rating"),
-            row.get("ratings_total"),
-            row.get("address"),
-            raw_s,
-            row.get("query_id"),
-            row.get("last_synced_at"),
-        ),
-    )
+def _default_payload() -> dict[str, Any]:
+    return {"exported_at": "", "places": []}
 
 
-def replace_reviews(
-    conn: sqlite3.Connection,
-    place_id: str,
-    reviews: list[dict[str, Any]],
-) -> None:
-    conn.execute("DELETE FROM reviews WHERE place_id = ?", (place_id,))
-    for r in reviews:
-        conn.execute(
-            """
-            INSERT INTO reviews (place_id, review_key, author, rating, text_content, published_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                place_id,
-                r["review_key"],
-                r["author"],
-                r.get("rating"),
-                r.get("text_content"),
-                r.get("published_at"),
-            ),
-        )
+def load_places_payload(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return _default_payload()
+    raw = path.read_text(encoding="utf-8").strip()
+    if not raw:
+        return _default_payload()
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        return _default_payload()
+    places = data.get("places")
+    if not isinstance(places, list):
+        places = []
+    return {"exported_at": data.get("exported_at") or "", "places": places}
 
 
-def _reviews_dict_rows(
-    rev_rows: list[sqlite3.Row],
-) -> list[dict[str, Any]]:
+def atomic_save_places_payload(path: Path, payload: dict[str, Any]) -> None:
+    """Write JSON atomically and sync to disk so each place is visible immediately."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f"{path.name}.tmp"
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def reviews_db_to_api(reviews_db: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = [
         {
             "author": r["author"],
@@ -81,104 +49,17 @@ def _reviews_dict_rows(
             "text": r["text_content"] or "",
             "time": r["published_at"],
         }
-        for r in rev_rows
+        for r in reviews_db
     ]
     out.sort(key=lambda x: float(x["rating"] or 0.0), reverse=True)
     return out[:MAX_REVIEWS_PER_PLACE]
 
 
-def reviews_for_place_ids(
-    conn: sqlite3.Connection,
-    place_ids: list[str],
-) -> dict[str, list[dict[str, Any]]]:
-    if not place_ids:
-        return {}
-    ph = ",".join("?" * len(place_ids))
-    rows = conn.execute(
-        f"""
-        SELECT place_id, author, rating, text_content, published_at
-        FROM reviews WHERE place_id IN ({ph})
-        """,
-        place_ids,
-    ).fetchall()
-    grouped: dict[str, list[sqlite3.Row]] = defaultdict(list)
-    for r in rows:
-        grouped[str(r["place_id"])].append(r)
-    return {pid: _reviews_dict_rows(lst) for pid, lst in grouped.items()}
-
-
-def list_places(
-    conn: sqlite3.Connection,
-    *,
-    category: str | None,
-    q: str | None,
-) -> tuple[list[dict[str, Any]], int]:
-    where: list[str] = []
-    params: list[Any] = []
-
-    if category:
-        where.append(
-            "(json_extract(types_json, '$[0]') = ? OR query_id = ?)"
-        )
-        params.extend([category, category])
-
-    if q:
-        where.append("name LIKE ?")
-        params.append(f"%{q}%")
-
-    wh = " WHERE " + " AND ".join(where) if where else ""
-
-    rows = conn.execute(
-        f"""
-        SELECT * FROM places
-        {wh}
-        ORDER BY name COLLATE NOCASE
-        """,
-        params,
-    ).fetchall()
-
-    pids = [str(r["place_id"]) for r in rows]
-    reviews_by_place = reviews_for_place_ids(conn, pids)
-
-    items: list[dict[str, Any]] = []
-    for r in rows:
-        types = json.loads(r["types_json"] or "[]")
-        pid = str(r["place_id"])
-        items.append(
-            {
-                "id": pid,
-                "name": r["name"],
-                "primary_type": types[0] if types else None,
-                "address": r["address"],
-                "lat": r["lat"],
-                "lng": r["lng"],
-                "rating": r["rating"],
-                "user_ratings_total": r["ratings_total"],
-                "last_synced_at": r["last_synced_at"],
-                "reviews": reviews_by_place.get(pid, []),
-            }
-        )
-    return items, len(items)
-
-
-def get_place(
-    conn: sqlite3.Connection,
-    place_id: str,
-) -> dict[str, Any] | None:
-    row = conn.execute(
-        "SELECT * FROM places WHERE place_id = ?", (place_id,)
-    ).fetchone()
-    if not row:
-        return None
-    types = json.loads(row["types_json"] or "[]")
-    rev_rows = conn.execute(
-        """
-        SELECT author, rating, text_content, published_at
-        FROM reviews WHERE place_id = ?
-        """,
-        (place_id,),
-    ).fetchall()
-    reviews = _reviews_dict_rows(list(rev_rows))
+def place_entry_from_row_and_reviews(
+    row: dict[str, Any],
+    reviews_db: list[dict[str, Any]],
+) -> dict[str, Any]:
+    types = row.get("types_json") or []
     return {
         "id": row["place_id"],
         "name": row["name"],
@@ -187,5 +68,93 @@ def get_place(
         "location": {"lat": row["lat"], "lng": row["lng"]},
         "rating": row["rating"],
         "user_ratings_total": row["ratings_total"],
-        "reviews": reviews,
+        "query_id": row["query_id"],
+        "last_synced_at": row["last_synced_at"],
+        "reviews": reviews_db_to_api(reviews_db),
     }
+
+
+def upsert_place_into_payload(
+    payload: dict[str, Any],
+    row: dict[str, Any],
+    reviews_db: list[dict[str, Any]],
+) -> None:
+    """Merge one place into the in-memory payload (no I/O)."""
+    entry = place_entry_from_row_and_reviews(row, reviews_db)
+    places: list[dict[str, Any]] = list(payload.get("places") or [])
+    pid = entry["id"]
+    idx = next((i for i, p in enumerate(places) if p.get("id") == pid), None)
+    if idx is not None:
+        places[idx] = entry
+    else:
+        places.append(entry)
+    payload["places"] = places
+    payload["exported_at"] = (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+
+
+def upsert_place_in_json(
+    path: Path,
+    row: dict[str, Any],
+    reviews_db: list[dict[str, Any]],
+) -> None:
+    """Load file, merge one place, save atomically (single-place API; reads disk each call)."""
+    payload = load_places_payload(path)
+    upsert_place_into_payload(payload, row, reviews_db)
+    atomic_save_places_payload(path, payload)
+
+
+def list_places(
+    path: Path,
+    *,
+    category: str | None,
+    q: str | None,
+) -> tuple[list[dict[str, Any]], int]:
+    payload = load_places_payload(path)
+    raw = list(payload.get("places") or [])
+    items: list[dict[str, Any]] = []
+    for p in raw:
+        types = p.get("types") or []
+        primary = types[0] if types else None
+        if category:
+            if not (primary == category or p.get("query_id") == category):
+                continue
+        if q:
+            name = (p.get("name") or "")
+            if q.lower() not in name.lower():
+                continue
+        loc = p.get("location") or {}
+        items.append(
+            {
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "primary_type": primary,
+                "address": p.get("address"),
+                "lat": loc.get("lat"),
+                "lng": loc.get("lng"),
+                "rating": p.get("rating"),
+                "user_ratings_total": p.get("user_ratings_total"),
+                "last_synced_at": p.get("last_synced_at"),
+                "reviews": p.get("reviews") or [],
+            }
+        )
+    items.sort(key=lambda x: (x.get("name") or "").lower())
+    return items, len(items)
+
+
+def get_place(path: Path, place_id: str) -> dict[str, Any] | None:
+    payload = load_places_payload(path)
+    for p in payload.get("places") or []:
+        if p.get("id") == place_id:
+            return {
+                "id": p["id"],
+                "name": p["name"],
+                "types": p.get("types") or [],
+                "address": p.get("address"),
+                "location": p.get("location") or {},
+                "rating": p.get("rating"),
+                "user_ratings_total": p.get("user_ratings_total"),
+                "reviews": p.get("reviews") or [],
+            }
+    return None

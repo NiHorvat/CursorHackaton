@@ -21,9 +21,9 @@ def list_places_handler(
     category: Annotated[str | None, Query(alias="category")] = None,
     q: Annotated[str | None, Query()] = None,
 ) -> dict:
-    conn = request.app.state.conn
+    path = request.app.state.paths.places_json_path
     items, total = list_places(
-        conn,
+        path,
         category=category,
         q=q,
     )
@@ -33,15 +33,15 @@ def list_places_handler(
     }
     if total == 0:
         out["hint"] = (
-            "Database has no places yet. Open GET /api/v1/sync in the browser or POST /api/v1/sync "
+            "No places in places_data.json yet. Open GET /api/v1/sync in the browser or POST /api/v1/sync "
             "(loads from Google Places using config/places_queries.json)."
         )
     return out
 
 
 def get_place_handler(request: Request, place_id: str) -> dict:
-    conn = request.app.state.conn
-    row = get_place(conn, place_id)
+    path = request.app.state.paths.places_json_path
+    row = get_place(path, place_id)
     if not row:
         raise HTTPException(status_code=404, detail="Place not found")
     return row
@@ -52,8 +52,11 @@ def _run_places_sync(request: Request) -> dict:
     paths = request.app.state.paths
     places_cfg = load_places_queries(paths.places_queries_path)
     client = PlacesClient(secrets.google_places_api_key)
-    conn = request.app.state.conn
-    return run_sync(conn, places_cfg, client)
+    return run_sync(
+        places_cfg,
+        client,
+        json_path=paths.places_json_path,
+    )
 
 
 def sync_places_handler(request: Request) -> dict:

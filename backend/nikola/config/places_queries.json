@@ -1,5 +1,5 @@
 {
-  "max_places_upserted": 100,
+  "max_places_upserted": 200,
   "max_pages_per_query": 15,
   "zagreb_location": {
     "circle": {

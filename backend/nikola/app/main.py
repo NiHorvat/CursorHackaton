@@ -9,7 +9,6 @@ from starlette.responses import RedirectResponse
 
 from app import __version__
 from app.config_schema import AppPaths, RoutesConfig, health_payload, load_routes, load_secrets
-from app.db import get_connection, init_db
 from app.handlers import HANDLERS
 
 
@@ -17,16 +16,11 @@ from app.handlers import HANDLERS
 async def lifespan(app: FastAPI):
     paths = AppPaths.from_project_root()
     secrets = load_secrets(paths.secrets_path)
-    conn = get_connection(paths.database_path)
-    init_db(conn)
 
     app.state.paths = paths
     app.state.secrets = secrets
-    app.state.conn = conn
 
     yield
-
-    conn.close()
 
 
 def create_app() -> FastAPI:
