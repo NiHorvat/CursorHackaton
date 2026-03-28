@@ -1,9 +1,13 @@
 import { Hero } from '../components/Hero'
 import { EventCard } from '../components/EventCard'
 import { LocationCard } from '../components/LocationCard'
-import { topLocations, upcomingEvents } from '../data/content'
+import { topLocations } from '../data/content'
+import { upcomingEvents } from '../data/eventsFromData'
+import { useLanguage } from '../i18n/LanguageContext'
 
 export function HomePage() {
+  const { t } = useLanguage()
+
   return (
     <>
       <Hero />
@@ -12,7 +16,7 @@ export function HomePage() {
         aria-labelledby="upcoming-heading"
       >
         <h2 id="upcoming-heading" className="ze-section-heading">
-          Nadolazeći Eventi
+          {t('home.upcoming')}
         </h2>
         <div className="ze-card-row">
           {upcomingEvents.map((e) => (
@@ -25,7 +29,7 @@ export function HomePage() {
         aria-labelledby="locations-heading"
       >
         <h2 id="locations-heading" className="ze-section-heading">
-          Top Lokacije
+          {t('home.topLocations')}
         </h2>
         <div className="ze-card-row">
           {topLocations.map((l) => (

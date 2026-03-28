@@ -1,28 +1,30 @@
+import { useLanguage } from '../i18n/LanguageContext'
+
 export function Newsletter() {
+  const { t } = useLanguage()
+
   return (
     <section className="ze-newsletter" aria-labelledby="newsletter-heading">
       <h2 id="newsletter-heading" className="ze-newsletter__title">
-        Prijavi Se Na Newsletter!
+        {t('newsletter.title')}
       </h2>
-      <p className="ze-newsletter__subtitle">
-        Primaj obavijesti o najboljim događajima i lokacijama u Zagrebu.
-      </p>
+      <p className="ze-newsletter__subtitle">{t('newsletter.subtitle')}</p>
       <form
         className="ze-newsletter__form"
         onSubmit={(e) => e.preventDefault()}
       >
         <label htmlFor="newsletter-email" className="ze-sr-only">
-          Email
+          {t('newsletter.emailLabel')}
         </label>
         <input
           id="newsletter-email"
           type="email"
           className="ze-newsletter__input"
-          placeholder="Unesi svoj email..."
+          placeholder={t('newsletter.placeholder')}
           autoComplete="email"
         />
         <button type="submit" className="ze-newsletter__btn">
-          Prijavi Se <span aria-hidden="true">&gt;</span>
+          {t('newsletter.submit')} <span aria-hidden="true">&gt;</span>
         </button>
       </form>
     </section>

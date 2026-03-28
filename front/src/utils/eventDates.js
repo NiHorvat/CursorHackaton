@@ -16,26 +16,22 @@ export function isEventInMonth(iso, monthAnchor) {
   )
 }
 
-const dateOnlyFmt = new Intl.DateTimeFormat('hr-HR', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-})
-
-const dateTimeFmt = new Intl.DateTimeFormat('hr-HR', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
-
-/** @param {string} iso */
-export function formatEventDateOnly(iso) {
-  return dateOnlyFmt.format(new Date(iso))
+/** @param {string} iso @param {string} intlLocale e.g. `hr-HR` or `en-GB` */
+export function formatEventDateOnly(iso, intlLocale = 'hr-HR') {
+  return new Intl.DateTimeFormat(intlLocale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(iso))
 }
 
-/** @param {string} iso */
-export function formatEventDateTime(iso) {
-  return dateTimeFmt.format(new Date(iso))
+/** @param {string} iso @param {string} intlLocale */
+export function formatEventDateTime(iso, intlLocale = 'hr-HR') {
+  return new Intl.DateTimeFormat(intlLocale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
 }

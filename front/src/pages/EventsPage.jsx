@@ -3,7 +3,8 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { TabSwitcher } from '../components/TabSwitcher'
 import { EventCard } from '../components/EventCard'
-import { moreEvents } from '../data/content'
+import { moreEvents } from '../data/eventsFromData'
+import { useLanguage } from '../i18n/LanguageContext'
 import { isEventInMonth } from '../utils/eventDates'
 import {
   defaultCalendarActiveStart,
@@ -13,6 +14,7 @@ import {
 } from '../utils/eventsCalendar'
 
 export function EventsPage() {
+  const { t, intlLocale } = useLanguage()
   const [query, setQuery] = useState('')
   const [activeMonth, setActiveMonth] = useState(() =>
     defaultCalendarActiveStart(moreEvents),
@@ -43,11 +45,13 @@ export function EventsPage() {
   }, [filteredBySearch, activeMonth])
 
   const monthLabel = useMemo(() => {
-    return new Intl.DateTimeFormat('hr-HR', {
+    return new Intl.DateTimeFormat(intlLocale, {
       month: 'long',
       year: 'numeric',
     }).format(activeMonth)
-  }, [activeMonth])
+  }, [activeMonth, intlLocale])
+
+  const calLocale = intlLocale === 'en-GB' ? 'en-GB' : 'hr-HR'
 
   return (
     <>
@@ -55,22 +59,18 @@ export function EventsPage() {
       <section className="ze-events-page" aria-labelledby="events-list-heading">
         <header className="ze-events-page__head">
           <h2 id="events-list-heading" className="ze-section-title">
-            Svi Eventovi
+            {t('events.title')}
           </h2>
-          <p className="ze-section-sub">
-            Pomiči kalendar ili odaberi dan — prikazuju se svi događaji u tom
-            mjesecu, poredani po datumu i vremenu. Dani s događajima označeni su
-            na kalendaru.
-          </p>
+          <p className="ze-section-sub">{t('events.intro')}</p>
           <div className="ze-search">
             <label htmlFor="event-search" className="ze-sr-only">
-              Pretraga eventova
+              {t('events.searchLabel')}
             </label>
             <input
               id="event-search"
               type="search"
               className="ze-search__input"
-              placeholder="Pretraži po nazivu ili kategoriji..."
+              placeholder={t('events.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               autoComplete="off"
@@ -82,7 +82,7 @@ export function EventsPage() {
           <div className="ze-events-layout__cal">
             <Calendar
               className="ze-calendar"
-              locale="hr-HR"
+              locale={calLocale}
               calendarType="iso8601"
               minDetail="month"
               maxDetail="month"
@@ -109,9 +109,7 @@ export function EventsPage() {
               {monthLabel}
             </h3>
             {eventsForSelectedMonth.length === 0 ? (
-              <p className="ze-empty ze-empty--left">
-                Nema događaja u ovom mjesecu za trenutni upit.
-              </p>
+              <p className="ze-empty ze-empty--left">{t('events.emptyMonth')}</p>
             ) : (
               <div className="ze-card-row ze-card-row--wrap ze-card-row--events-day">
                 {eventsForSelectedMonth.map((e) => (
