@@ -26,12 +26,75 @@ function loadAllEvents() {
 const allEvents = loadAllEvents();
 const eventById = Object.fromEntries(allEvents.map((e) => [String(e.id), e]));
 
+function resolvePlacesDataPath() {
+  if (process.env.PLACES_DATA_PATH) {
+    const p = process.env.PLACES_DATA_PATH.startsWith("/")
+      ? process.env.PLACES_DATA_PATH
+      : join(__dirname, process.env.PLACES_DATA_PATH);
+    try {
+      readFileSync(p);
+    } catch (e) {
+      throw new Error(`PLACES_DATA_PATH not readable: ${p} (${e.message})`);
+    }
+    return p;
+  }
+  const candidates = [
+    join(__dirname, "places_data.json"),
+    join(__dirname, "..", "nikola", "places_data.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      readFileSync(p);
+      return p;
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error(
+    "places_data.json not found. Put it in AI_agent/ or backend/nikola/, or set PLACES_DATA_PATH",
+  );
+}
+
+let placesDataPathLogged = "";
+
+function normalizePlaceRow(raw) {
+  const types = Array.isArray(raw.types) ? raw.types : [];
+  const loc = raw.location || {};
+  const lat = raw.lat ?? loc.lat ?? loc.latitude;
+  const lng = raw.lng ?? loc.lng ?? loc.longitude;
+  return {
+    ...raw,
+    types,
+    lat,
+    lng,
+    primary_type: types[0] ?? raw.primary_type ?? null,
+  };
+}
+
+function loadAllPlacesFromFile() {
+  const path = resolvePlacesDataPath();
+  placesDataPathLogged = path;
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  const arr = Array.isArray(raw) ? raw : raw.places;
+  if (!Array.isArray(arr)) {
+    throw new Error("places_data.json must be { places: [...] } or a bare array");
+  }
+  return arr.map(normalizePlaceRow);
+}
+
+let allPlaces;
+let placeByIdFull;
+try {
+  allPlaces = loadAllPlacesFromFile();
+  placeByIdFull = Object.fromEntries(allPlaces.map((p) => [p.id, p]));
+} catch (e) {
+  console.error("[AI_agent] Failed to load places data:", e.message);
+  process.exit(1);
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-/** Last successful `fetch_places_catalog` items from nikola (GET …/places). */
-let latestPlacesItems = [];
 
 function slimEventForTool(e) {
   return {
@@ -90,8 +153,19 @@ const tools = [
     function: {
       name: "fetch_places_catalog",
       description:
-        "Fetches places from the nikola backend (GET /api/v1/places). Each item: Google place id, name, primary_type, lat/lng, address, rating, reviews. Required for any place recommendations.",
-      parameters: { type: "object", properties: {}, additionalProperties: false },
+        "Loads places from the local places_data.json export (no HTTP). Each item: Google id, name, types, primary_type, query_id, lat/lng, address, rating, user_ratings_total, reviews (use review text for recommendations). Optional category filters by query_id or a value in types (e.g. nightclubs, night_club, bar, pub, cafe, restaurant). Optional q filters name substring.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: {
+            type: "string",
+            description:
+              "Filter: match query_id (e.g. nightclubs, bars) OR any Google type in types[] (e.g. night_club, bar, pub).",
+          },
+          q: { type: "string", description: "Case-insensitive substring match on place name." },
+        },
+        additionalProperties: false,
+      },
     },
   },
   {
@@ -136,7 +210,8 @@ const SYSTEM_PROMPT = `You are a concise Zagreb city guide assistant. You help v
 Rules:
 - You do NOT have live data until you call the tools. Always call fetch_places_catalog and/or fetch_events_catalog when you need facts.
 - The places and events systems are independent; synthesize answers yourself from tool outputs.
-- Prefer 2–5 concrete suggestions when recommending; mention area and why it fits the user's prompt.
+- For nightlife/clubbing, call fetch_places_catalog with category nightclubs, night_club, bars, bar, pubs, or pub.
+- Prefer 2–5 concrete suggestions when recommending; mention area and why it fits the user's prompt; cite review themes when helpful.
 - If something is not in the tool data, say you don't have it in the current catalogs instead of inventing.
 - Keep answers readable; use short paragraphs or bullets.`;
 
@@ -144,51 +219,104 @@ const RECOMMEND_SYSTEM_PROMPT = `You are a Zagreb planning assistant for a map U
 
 Rules:
 - Always call fetch_places_catalog and/or fetch_events_catalog before reasoning about specific venues or events. You have no catalog data until tools return.
-- Places and events live in separate systems; combine them logically for the user's request (e.g. evening party → nightlife places + same-night events if any).
+- Places come from local places_data.json (tool response includes reviews); events from events.json. Combine them logically (e.g. clubbing → night_club/bar places; events optional).
 - When you eventually choose pins, you may ONLY reference ids from those tool payloads: places use Google place_id strings (ChIJ…); events use stringified numeric ids from the events items (e.g. "37"). Never invent ids or coordinates.
-- Prefer 2–6 strong matches; skip weak fits.
+- Prefer 2–6 strong matches; use ratings and review text from the tool to justify picks.
 - If the user mentions a date or "tonight", prefer events that plausibly match; if none match, recommend relevant places only and say so in the summary later.`;
 
-async function fetchPlacesFromNikolaRoute() {
-  const base = process.env.PLACES_API_BASE_URL?.replace(/\/$/, "");
-  if (!base) {
-    throw new Error("PLACES_API_BASE_URL is not set (nikola api root, e.g. http://127.0.0.1:8000/api/v1)");
+function filterPlacesCatalog(category, q) {
+  let out = allPlaces;
+  if (category) {
+    out = out.filter(
+      (p) =>
+        p.query_id === category ||
+        (Array.isArray(p.types) && p.types.includes(category)),
+    );
   }
-  const url = `${base}/places`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
-  const data = await res.json();
-  if (!Array.isArray(data.items)) {
-    throw new Error("places response missing items array");
+  if (q && typeof q === "string" && q.trim()) {
+    const s = q.trim().toLowerCase();
+    out = out.filter((p) => (p.name || "").toLowerCase().includes(s));
   }
-  return data.items;
+  return out;
 }
 
-async function runToolAsync(name) {
+function slimPlaceForTool(p) {
+  const maxR = Number(process.env.PLACES_TOOL_REVIEWS_PER_PLACE) || 6;
+  const maxChars = Number(process.env.PLACES_TOOL_REVIEW_MAX_CHARS) || 600;
+  const revs = (p.reviews || []).slice(0, maxR).map((r) => {
+    const t = r.text;
+    const text =
+      typeof t === "string" && t.length > maxChars ? `${t.slice(0, maxChars)}…` : t;
+    return {
+      author: r.author,
+      rating: r.rating,
+      text,
+      time: r.time,
+    };
+  });
+  return {
+    id: p.id,
+    name: p.name,
+    primary_type: p.primary_type,
+    types: p.types,
+    query_id: p.query_id,
+    address: p.address,
+    lat: p.lat,
+    lng: p.lng,
+    rating: p.rating,
+    user_ratings_total: p.user_ratings_total,
+    last_synced_at: p.last_synced_at,
+    reviews: revs,
+  };
+}
+
+function buildPlacesToolPayload(args = {}) {
+  const category = typeof args.category === "string" ? args.category : undefined;
+  const q = typeof args.q === "string" ? args.q : undefined;
+  const filtered = filterPlacesCatalog(category, q);
+  const withGeo = filtered.filter(
+    (p) =>
+      p.lat != null &&
+      p.lng != null &&
+      Number.isFinite(Number(p.lat)) &&
+      Number.isFinite(Number(p.lng)),
+  );
+  const maxItems = Number(process.env.PLACES_TOOL_MAX_ITEMS) || 120;
+  const truncated = withGeo.length > maxItems;
+  const slice = truncated ? withGeo.slice(0, maxItems) : withGeo;
+  const items = slice.map(slimPlaceForTool);
+  return {
+    source: "places_data.json",
+    file: placesDataPathLogged,
+    items,
+    total_matching: withGeo.length,
+    items_returned: items.length,
+    truncated,
+    filters: { category: category ?? null, q: q ?? null },
+    total_in_file: allPlaces.length,
+    hint:
+      items.length === 0
+        ? "No places matched filters. Try another category or omit filters for a capped sample (still truncated if huge)."
+        : truncated
+          ? `Capped at ${maxItems} rows. Narrow with category or q. Use reviews and ratings in items to justify recommendations.`
+          : "Use reviews and ratings in items to justify recommendations. Only recommend ids from items.",
+  };
+}
+
+function parseToolArgs(argumentsJson) {
+  if (!argumentsJson || typeof argumentsJson !== "string") return {};
+  try {
+    const o = JSON.parse(argumentsJson);
+    return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+async function runToolAsync(name, argumentsJson) {
   if (name === "fetch_places_catalog") {
-    try {
-      const items = await fetchPlacesFromNikolaRoute();
-      latestPlacesItems = items;
-      const payload = {
-        source: "places-backend",
-        items,
-        total: items.length,
-      };
-      if (items.length === 0) {
-        payload.hint =
-          "No rows in nikola DB yet. Trigger sync: GET or POST /api/v1/sync on the places service.";
-      }
-      return JSON.stringify(payload);
-    } catch (e) {
-      console.warn("[AI_agent] places fetch failed:", e.message);
-      latestPlacesItems = [];
-      return JSON.stringify({
-        source: "places-backend",
-        error: e.message,
-        items: [],
-        total: 0,
-      });
-    }
+    const args = parseToolArgs(argumentsJson);
+    return JSON.stringify(buildPlacesToolPayload(args));
   }
   if (name === "fetch_events_catalog") {
     return JSON.stringify(buildEventsToolPayload());
@@ -202,16 +330,15 @@ async function runToolAsync(name) {
  */
 function enrichPins(pins) {
   if (!Array.isArray(pins)) return [];
-  const placeById = Object.fromEntries(latestPlacesItems.map((p) => [p.id, p]));
   const out = [];
   for (const pin of pins) {
     if (!pin || (pin.kind !== "place" && pin.kind !== "event")) continue;
     const key = String(pin.id);
-    const row = pin.kind === "place" ? placeById[key] : eventById[key];
+    const row = pin.kind === "place" ? placeByIdFull[key] : eventById[key];
     if (!row) continue;
     const reason = typeof pin.reason === "string" ? pin.reason : "";
-    const lat = row.lat ?? row.latitude;
-    const lng = row.lng ?? row.longitude;
+    const lat = row.lat ?? row.latitude ?? row.location?.lat;
+    const lng = row.lng ?? row.longitude ?? row.location?.lng;
     const base = {
       kind: pin.kind,
       id: key,
@@ -227,6 +354,8 @@ function enrichPins(pins) {
         lng,
         name: row.name,
         primary_type: row.primary_type,
+        types: row.types,
+        query_id: row.query_id,
         rating: row.rating,
         user_ratings_total: row.user_ratings_total,
         last_synced_at: row.last_synced_at,
@@ -306,7 +435,7 @@ async function runAgentTurn(userMessage, history = []) {
     }
 
     for (const call of toolCalls) {
-      const output = await runToolAsync(call.function.name);
+      const output = await runToolAsync(call.function.name, call.function.arguments);
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -358,7 +487,7 @@ async function runRecommendTurn(userMessage, history = []) {
     }
 
     for (const call of toolCalls) {
-      const output = await runToolAsync(call.function.name);
+      const output = await runToolAsync(call.function.name, call.function.arguments);
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -378,7 +507,7 @@ async function runRecommendTurn(userMessage, history = []) {
   messages.push({
     role: "user",
     content:
-      "Produce the final map recommendation JSON. summary: one or two sentences for the UI. pins: 2–6 entries. Each pin: kind \"place\" or \"event\", id copied exactly from the catalog tool responses you received, and a short reason tied to the user's request. Only ids that exist in those catalogs. If none match, return an empty pins array and explain in summary.",
+      "Produce the final map recommendation JSON. summary: one or two sentences for the UI. pins: 2–6 entries. Each pin: kind \"place\" or \"event\", id copied exactly from the catalog tool responses you received, and a short reason tied to the user's request (for places, reasons can reflect reviews/ratings from the tool). Only ids that exist in those catalogs. If none match, return an empty pins array and explain in summary.",
   });
 
   const jsonResponse = await openai.chat.completions.create({
@@ -414,9 +543,22 @@ app.get("/health", (_req, res) => {
       Number.isFinite(Number(e.lat)) &&
       Number.isFinite(Number(e.lng)),
   );
+  const pGeo = allPlaces.filter(
+    (p) =>
+      p.lat != null &&
+      p.lng != null &&
+      Number.isFinite(Number(p.lat)) &&
+      Number.isFinite(Number(p.lng)),
+  );
   res.json({
     ok: true,
     service: "zagreb-ai-agent",
+    places: {
+      file: placesDataPathLogged,
+      loaded: allPlaces.length,
+      with_coordinates: pGeo.length,
+      max_sent_to_model: Number(process.env.PLACES_TOOL_MAX_ITEMS) || 120,
+    },
     events: {
       loaded: allEvents.length,
       with_coordinates: withGeo.length,
