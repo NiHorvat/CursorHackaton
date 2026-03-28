@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+.env
+*.db
+config/secrets.json
+.uv/
+dist/
+*.egg-info/

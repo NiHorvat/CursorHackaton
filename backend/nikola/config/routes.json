@@ -1,0 +1,10 @@
+{
+  "api_root": "/api/v1",
+  "routes": [
+    { "name": "health", "method": "GET", "path": "/health" },
+    { "name": "list_places", "method": "GET", "path": "/places" },
+    { "name": "get_place", "method": "GET", "path": "/places/{place_id}" },
+    { "name": "sync_places", "method": "POST", "path": "/sync" },
+    { "name": "sync_places_get", "method": "GET", "path": "/sync" }
+  ]
+}
